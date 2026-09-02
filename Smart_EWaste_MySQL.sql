@@ -1,6 +1,4 @@
 -- SMART E-WASTE COLLECTION, RECYCLING AND REFURBISHMENT MANAGEMENT SYSTEM
--- Complete MySQL implementation for the DBMS Level 3 mini-project
--- Target: MySQL 8.x
 
 CREATE DATABASE IF NOT EXISTS smart_ewaste_db;
 USE smart_ewaste_db;
@@ -786,7 +784,3 @@ SHOW INDEX FROM INSPECTION;
 
 SHOW FULL TABLES
 WHERE TABLE_TYPE = 'VIEW';
-
--- ============================================================
--- END OF MYSQL IMPLEMENTATION
--- ============================================================
