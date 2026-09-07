@@ -216,35 +216,19 @@ CHECK (
 -- 3. INDEXES
 -- ============================================================
 
-CREATE INDEX idx_pickup_status_date
-ON PICKUP_REQUEST (pickup_status, scheduled_date);
 
-CREATE INDEX idx_pickup_center
-ON PICKUP_REQUEST (center_id);
 
-CREATE INDEX idx_pickup_collector
-ON PICKUP_REQUEST (collector_id);
 
-CREATE INDEX idx_item_status
-ON E_WASTE_ITEM (item_status);
 
-CREATE INDEX idx_item_category
-ON E_WASTE_ITEM (category_id);
 
-CREATE INDEX idx_inspection_date
-ON INSPECTION (inspection_date);
 
-CREATE INDEX idx_recycling_status
-ON RECYCLING (recycling_status);
 
-CREATE INDEX idx_product_sale_status
-ON REFURBISHED_PRODUCT (sale_status);
 
 -- ============================================================
 -- 4. VIEWS
 -- ============================================================
 
-CREATE OR REPLACE VIEW v_pending_pickups AS
+CREATE VIEW v_pending_pickups AS
 SELECT
     p.pickup_id,
     u.user_id,
@@ -264,7 +248,7 @@ JOIN COLLECTION_CENTER c ON p.center_id = c.center_id
 JOIN COLLECTOR col ON p.collector_id = col.collector_id
 WHERE p.pickup_status IN ('Pending', 'Scheduled');
 
-CREATE OR REPLACE VIEW v_item_processing_overview AS
+CREATE VIEW v_item_processing_overview AS
 SELECT
     i.item_id,
     i.item_name,
@@ -281,7 +265,7 @@ JOIN CATEGORY cat ON i.category_id = cat.category_id
 LEFT JOIN BRAND b ON i.brand_id = b.brand_id
 LEFT JOIN INSPECTION ins ON i.item_id = ins.item_id;
 
-CREATE OR REPLACE VIEW v_refurbished_products AS
+CREATE VIEW v_refurbished_products AS
 SELECT
     product_id,
     product_name,
@@ -671,17 +655,12 @@ ORDER BY selling_price DESC;
 START TRANSACTION;
 
 INSERT INTO PICKUP_REQUEST
-    (requested_date, scheduled_date, pickup_address,
+    (pickup_id, requested_date, scheduled_date, pickup_address,
      pickup_status, user_id, center_id, collector_id,
      assignment_status)
 VALUES
-    (CURRENT_DATE,
-     DATE_ADD(CURRENT_DATE, INTERVAL 2 DAY),
-     'Guindy, Chennai',
-     'Scheduled',
-     1, 1, 1, 'Assigned');
-
-SET @new_pickup_id = LAST_INSERT_ID();
+    (7, '2026-03-10', '2026-03-12', 'Guindy, Chennai',
+     'Scheduled', 1, 1, 1, 'Assigned');
 
 INSERT INTO E_WASTE_ITEM
     (item_name, description, `condition`,
@@ -699,7 +678,7 @@ VALUES
      1.70,
      'Scheduled for Pickup',
      1, 2, 2,
-     @new_pickup_id, 1);
+     7, 1);
 
 COMMIT;
 
