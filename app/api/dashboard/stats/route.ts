@@ -59,19 +59,26 @@ export async function GET() {
     const recycledRows = (recycled as CountRow[] | undefined) ?? [];
     const refurbishedRows = (refurbished as CountRow[] | undefined) ?? [];
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        name: user.name,
-        role: user.role,
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          name: user.name,
+          role: user.role,
+        },
+        stats: {
+          totalItems: Number(itemRows[0]?.totalItems ?? 0),
+          totalPickups: Number(pickupRows[0]?.totalPickups ?? 0),
+          totalRecycled: Number(recycledRows[0]?.totalRecycled ?? 0),
+          totalRefurbished: Number(refurbishedRows[0]?.totalRefurbished ?? 0),
+        },
       },
-      stats: {
-        totalItems: Number(itemRows[0]?.totalItems ?? 0),
-        totalPickups: Number(pickupRows[0]?.totalPickups ?? 0),
-        totalRecycled: Number(recycledRows[0]?.totalRecycled ?? 0),
-        totalRefurbished: Number(refurbishedRows[0]?.totalRefurbished ?? 0),
-      },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
 
@@ -81,7 +88,12 @@ export async function GET() {
           success: false,
           message: "Authentication required.",
         },
-        { status: 401 }
+        {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        }
       );
     }
 
@@ -91,7 +103,12 @@ export async function GET() {
           success: false,
           message: "You do not have permission to access dashboard statistics.",
         },
-        { status: 403 }
+        {
+          status: 403,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        }
       );
     }
 
@@ -102,7 +119,12 @@ export async function GET() {
         success: false,
         message: "Failed to load dashboard statistics.",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
     );
   }
 }

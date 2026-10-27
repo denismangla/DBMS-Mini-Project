@@ -1,38 +1,53 @@
-# Implementation status audit
+# Implementation status
 
-## Initial audit summary
+## Customer registration and devices
 
-The project is a Next.js App Router application with MySQL-backed operational data and a JWT-based session cookie for authentication. Key working areas already in place include the MySQL connection pool, session cookie flow, dashboard statistics API, and the item/pickup list APIs. The current app code also includes the landing page, login page, dashboard, and database-driven list pages for items and pickups.
+- `POST /api/auth/register` validates input, hashes passwords with bcryptjs,
+  checks duplicate emails, and always inserts the `CUSTOMER` role.
+- `/register` provides the registration form and link to login.
+- Authenticated customers can register devices on `/items`. The API validates
+  category/brand references, derives `user_id` from the signed session, and
+  inserts devices with the initial `Registered` status.
+- `GET /api/items` retains session-based customer ownership filtering and
+  provides category and brand options for the form.
 
-## Completed functionality
+## Recycling and refurbishment
 
-- Next.js project scaffolding and app structure are present.
-- MySQL connection pooling is configured in `lib/mysql.ts` with environment-specific credentials.
-- Login API validates credentials against the `USER` table, compares a bcrypt hash, and issues an expiring `ewaste_session` JWT cookie.
-- Logout clears the session cookie and invalidates the client session.
-- `/api/auth/me` verifies the session and returns the current user identity.
-- Dashboard stats API counts items, pickups, recycling, and refurbishment records with customer filtering for non-management roles.
-- Items and pickups APIs return MySQL-backed records while restricting customers to their own rows.
-- Basic UI flow for landing page, login page, dashboard, item list, and pickup list is implemented.
+- `/recycling` displays MySQL recycling records and provides staff/admin status
+  controls backed by `PATCH /api/recycling/[id]`.
+- `/refurbishment` displays product, sale, payment, and processing information.
+  Staff/admin updates use `PATCH /api/refurbishment/[id]`.
+- A Sold product receives a sale date if one is not already recorded. Payment
+  status is not changed or processed. A paid Sold product cannot be reverted to
+  Available.
+- Customers see only operational records linked to their own devices and cannot
+  update statuses.
 
-## Defects identified
+## MongoDB inspection reports
 
-- The login page was vulnerable to HTML error responses being treated as JSON and crashing the client code.
-- Some routes did not consistently validate malformed JSON or missing environment configuration.
-- Session helpers existed but needed stricter role validation and reusable authorization checks.
-- A few page navigation patterns used raw browser redirects instead of Next.js client navigation conventions.
-- The workspace lacked a dedicated MySQL connection health endpoint and an implementation-status document.
+- `lib/mongodb.ts` caches a MongoDB client promise for development reloads.
+- `GET` and staff/admin-only `POST /api/inspections` use
+  `smart_ewaste_nosql.inspection_reports`.
+- The API verifies inspection/item pairing against MySQL and customer report
+  reads are restricted to reports for their own items.
+- `/inspections` displays report notes, observations, component findings,
+  recommendations, and attachment names. Staff/admin users can create reports.
+- Configure `MONGODB_URI` and `MONGODB_DB=smart_ewaste_nosql` in `.env.local`.
+- The local MongoDB service, target database, collection, reads, and a
+  create/read-back cycle were verified using a temporary local URI override.
+  Existing component findings use the `notes` field; new reports follow that
+  same shape. The ignored local `.env.local` now contains the verified
+  localhost URI and database name; deployments should configure their own
+  reachable URI.
+- Browser verification displayed existing reports and a newly created report
+  after a full page reload.
 
-## Missing or incomplete functionality
+## Data and security notes
 
-- More explicit role-based authorization helpers for protected API handlers and server-side page gates are still needed for full enforcement.
-- The app does not yet include the broader admin/staff operational modules described in the project blueprint (inspection, recycling, refurbishment, and administrative record management).
-- The project has no dedicated SQL scripts or MongoDB inspection-report collection setup artifacts visible in the workspace at this stage.
-
-## Recommended implementation order
-
-1. Fix authentication and session handling for login, logout, and `/api/auth/me`.
-2. Harden MySQL connection, environment validation, and shared auth helpers.
-3. Improve the UI navigation and error handling around login and redirects.
-4. Add connection-health and route-level authorization guards.
-5. Extend operational modules for inspections, recycling, refurbishment, and staff/admin workflows once the core auth flow is verified.
+- No schema migrations, drops, or seed scripts were run.
+- Existing authentication/session helpers and MySQL pool are reused.
+- APIs use parameterized SQL and return generic database errors rather than
+  exposing query details or credentials.
+- `.env.example` contains placeholders only; keep `.env.local` untracked.
+- Executed commands and database-test limitations are documented in
+  [TESTING.md](./TESTING.md).

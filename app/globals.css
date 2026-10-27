@@ -180,6 +180,116 @@ footer {
   padding: 40px 60px;
 }
 
+.formPanel {
+  margin-bottom: 32px;
+  padding: 26px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.formPanel h2,
+.sectionHeading {
+  margin: 0 0 18px;
+  color: #14532d;
+}
+
+.deviceForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+}
+
+.deviceForm label {
+  align-self: end;
+  font-weight: 600;
+}
+
+.deviceForm input,
+.deviceForm select,
+.deviceForm textarea,
+.itemsTable select {
+  width: 100%;
+  min-width: 120px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: white;
+  font: inherit;
+}
+
+.deviceForm textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.deviceForm button,
+.itemsTable button {
+  width: fit-content;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 7px;
+  background: #14532d;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.deviceForm button:disabled,
+.itemsTable button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.formHelp {
+  margin-top: 14px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.successMessage,
+.errorMessage {
+  margin: 0 0 18px;
+  font-weight: 600;
+}
+
+.successMessage {
+  color: #166534;
+}
+
+.errorMessage {
+  color: #b91c1c;
+}
+
+.reportList {
+  display: grid;
+  gap: 18px;
+}
+
+.reportCard {
+  padding: 22px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.reportCard h3 {
+  color: #14532d;
+}
+
+.reportCard h4 {
+  margin: 18px 0 6px;
+}
+
+.reportCard ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.reportCard li {
+  margin: 5px 0;
+}
+
 .tableContainer {
   background: white;
   border-radius: 12px;
@@ -230,6 +340,10 @@ footer {
 
   .itemsSection {
     padding: 25px 20px;
+  }
+
+  .deviceForm {
+    grid-template-columns: 1fr;
   }
 }
 

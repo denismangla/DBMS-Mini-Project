@@ -35,11 +35,18 @@ export async function GET() {
       managementAccess ? [] : [user.userId]
     );
 
-    return NextResponse.json({
-      success: true,
-      pickups: rows,
-      userRole: user.role,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        pickups: rows,
+        userRole: user.role,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
 
@@ -49,7 +56,12 @@ export async function GET() {
           success: false,
           message: "Authentication required.",
         },
-        { status: 401 }
+        {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        }
       );
     }
 
@@ -59,7 +71,12 @@ export async function GET() {
           success: false,
           message: "You do not have permission to access pickup requests.",
         },
-        { status: 403 }
+        {
+          status: 403,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        }
       );
     }
 
@@ -70,7 +87,12 @@ export async function GET() {
         success: false,
         message: "Failed to load pickup requests.",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
     );
   }
 }

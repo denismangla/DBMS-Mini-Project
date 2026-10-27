@@ -3,6 +3,21 @@ import { requireRole } from "@/lib/auth";
 import pool from "@/lib/mysql";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Not found.",
+      },
+      {
+        status: 404,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
+  }
+
   try {
     await requireRole(["STAFF", "ADMIN"]);
 

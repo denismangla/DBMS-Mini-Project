@@ -118,6 +118,9 @@ export default function Home() {
         <Link href="/dashboard">Dashboard</Link>
         <Link href="/items">E-Waste Items</Link>
         <Link href="/pickups">Pickup Requests</Link>
+        <Link href="/recycling">Recycling</Link>
+        <Link href="/refurbishment">Refurbishment</Link>
+        <Link href="/inspections">Inspection Reports</Link>
       </nav>
 
       <section className="welcome">

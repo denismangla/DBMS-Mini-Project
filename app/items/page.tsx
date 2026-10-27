@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type Item = {
   item_id: number;
@@ -16,39 +16,100 @@ type Item = {
   brand_name: string | null;
 };
 
+type Category = { category_id: number; category_name: string };
+type Brand = { brand_id: number; brand_name: string };
+
 export default function ItemsPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [role, setRole] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    itemName: "",
+    description: "",
+    condition: "",
+    categoryId: "",
+    brandId: "",
+    manufactureYear: "",
+    estimatedWeight: "",
+    quantity: "",
+  });
+
+  const loadItems = useCallback(async () => {
+    try {
+      const response = await fetch("/api/items", { cache: "no-store" });
+      const data = await response.json();
+
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        setMessage(data.message ?? "Unable to load e-waste items.");
+        return;
+      }
+      setItems(data.items);
+      setCategories(data.categories ?? []);
+      setBrands(data.brands ?? []);
+      setRole(data.userRole ?? "");
+    } catch (error) {
+      console.error("Failed to load items:", error);
+      setMessage("Unable to load e-waste items.");
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
 
   useEffect(() => {
-    async function loadItems() {
-      try {
-        const response = await fetch("/api/items", {
-          cache: "no-store",
-        });
+    void Promise.resolve().then(loadItems);
+  }, [loadItems]);
 
-        const data = await response.json();
+  async function handleCreateItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
 
-        if (response.status === 401) {
-          router.push("/login");
-          return;
-        }
+    try {
+      const response = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
 
-        if (data.success) {
-          setItems(data.items);
-          setRole(data.userRole ?? "");
-        }
-      } catch (error) {
-        console.error("Failed to load items:", error);
-      } finally {
-        setLoading(false);
+      if (response.status === 401) {
+        router.push("/login");
+        return;
       }
-    }
+      if (!response.ok || !data.success) {
+        setMessage(data.message ?? "Unable to register this device.");
+        return;
+      }
 
-    loadItems();
-  }, [router]);
+      setMessage("Device registered successfully.");
+      setForm({
+        itemName: "",
+        description: "",
+        condition: "",
+        categoryId: "",
+        brandId: "",
+        manufactureYear: "",
+        estimatedWeight: "",
+        quantity: "",
+      });
+      await loadItems();
+    } catch (error) {
+      console.error("Device registration request failed:", error);
+      setMessage("Unable to connect to the device registration service.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="itemsPage">
@@ -68,6 +129,121 @@ export default function ItemsPage() {
       </header>
 
       <section className="itemsSection">
+        {role === "CUSTOMER" && (
+          <div className="formPanel">
+            <h2>Register an e-waste device</h2>
+            <form className="deviceForm" onSubmit={handleCreateItem}>
+              <label htmlFor="itemName">Device name</label>
+              <input
+                id="itemName"
+                required
+                maxLength={150}
+                value={form.itemName}
+                onChange={(event) =>
+                  setForm({ ...form, itemName: event.target.value })
+                }
+              />
+
+              <label htmlFor="description">Description</label>
+              <textarea
+                id="description"
+                maxLength={500}
+                value={form.description}
+                onChange={(event) =>
+                  setForm({ ...form, description: event.target.value })
+                }
+              />
+
+              <label htmlFor="condition">Condition</label>
+              <input
+                id="condition"
+                maxLength={50}
+                value={form.condition}
+                onChange={(event) =>
+                  setForm({ ...form, condition: event.target.value })
+                }
+              />
+
+              <label htmlFor="categoryId">Category</label>
+              <select
+                id="categoryId"
+                required
+                value={form.categoryId}
+                onChange={(event) =>
+                  setForm({ ...form, categoryId: event.target.value })
+                }
+              >
+                <option value="">Select a category</option>
+                {categories.map((category) => (
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.category_name}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="brandId">Brand (optional)</label>
+              <select
+                id="brandId"
+                value={form.brandId}
+                onChange={(event) =>
+                  setForm({ ...form, brandId: event.target.value })
+                }
+              >
+                <option value="">No brand</option>
+                {brands.map((brand) => (
+                  <option key={brand.brand_id} value={brand.brand_id}>
+                    {brand.brand_name}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="manufactureYear">Manufacture year (optional)</label>
+              <input
+                id="manufactureYear"
+                type="number"
+                min={1901}
+                max={new Date().getFullYear()}
+                value={form.manufactureYear}
+                onChange={(event) =>
+                  setForm({ ...form, manufactureYear: event.target.value })
+                }
+              />
+
+              <label htmlFor="estimatedWeight">Estimated weight (kg)</label>
+              <input
+                id="estimatedWeight"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.estimatedWeight}
+                onChange={(event) =>
+                  setForm({ ...form, estimatedWeight: event.target.value })
+                }
+              />
+
+              <label htmlFor="quantity">Quantity (optional)</label>
+              <input
+                id="quantity"
+                type="number"
+                min="1"
+                step="1"
+                value={form.quantity}
+                onChange={(event) =>
+                  setForm({ ...form, quantity: event.target.value })
+                }
+              />
+
+              <button type="submit" disabled={saving || categories.length === 0}>
+                {saving ? "Registering..." : "Register device"}
+              </button>
+            </form>
+            <p className="formHelp">
+              New devices are recorded as Registered. Processing status is
+              managed by staff.
+            </p>
+          </div>
+        )}
+        {message && <p className="loginMessage">{message}</p>}
         {loading ? (
           <p>Loading items...</p>
         ) : items.length === 0 ? (

@@ -73,7 +73,6 @@ export default function LoginPage() {
         <p className="loginSubtitle">
           Login to access the management system
         </p>
-
         <form onSubmit={handleLogin}>
           <label htmlFor="email">Email</label>
 
@@ -106,6 +105,9 @@ export default function LoginPage() {
 
         {message && <p className="loginMessage">{message}</p>}
 
+        <Link href="/register" className="loginBack">
+          Create a customer account
+        </Link>
         <Link href="/" className="loginBack">
           ← Back to Home
         </Link>
