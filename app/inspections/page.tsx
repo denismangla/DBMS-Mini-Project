@@ -10,6 +10,8 @@ type InspectionOption = {
   itemName: string;
 };
 
+type InspectionCandidate = { itemId: number; itemName: string };
+
 type ComponentFinding = {
   component: string;
   condition: string;
@@ -42,6 +44,9 @@ export default function InspectionsPage() {
   const [inspectionOptions, setInspectionOptions] = useState<
     InspectionOption[]
   >([]);
+  const [inspectionCandidates, setInspectionCandidates] = useState<
+    InspectionCandidate[]
+  >([]);
   const [selectedInspection, setSelectedInspection] = useState("");
   const [role, setRole] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,6 +58,13 @@ export default function InspectionsPage() {
   const [componentFindings, setComponentFindings] = useState("");
   const [repairRecommendations, setRepairRecommendations] = useState("");
   const [attachments, setAttachments] = useState("");
+  const [newInspection, setNewInspection] = useState({
+    itemId: "",
+    conditionAssessment: "",
+    damageLevel: "Moderate",
+    inspectionResult: "Refurbishment recommended",
+    estimatedRepairCost: "",
+  });
 
   const loadReports = useCallback(async () => {
     setError("");
@@ -70,6 +82,7 @@ export default function InspectionsPage() {
       setRole(data.userRole ?? "");
       setReports(data.reports ?? []);
       setInspectionOptions(data.inspectionOptions ?? []);
+      setInspectionCandidates(data.inspectionCandidates ?? []);
       if (!selectedInspection && data.inspectionOptions?.length) {
         setSelectedInspection(String(data.inspectionOptions[0].inspectionId));
       }
@@ -84,6 +97,55 @@ export default function InspectionsPage() {
   useEffect(() => {
     void Promise.resolve().then(loadReports);
   }, [loadReports]);
+
+  async function handleCreateInspection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+    const processingType =
+      newInspection.inspectionResult === "Refurbishment recommended"
+        ? "Refurbishment"
+        : newInspection.inspectionResult === "Recycling recommended"
+          ? "Recycling"
+          : null;
+    try {
+      const response = await fetch("/api/inspections/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newInspection,
+          itemId: Number(newInspection.itemId),
+          estimatedRepairCost: newInspection.estimatedRepairCost || null,
+          processingType,
+        }),
+      });
+      const data = await response.json();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (!response.ok || !data.success) {
+        setError(data.message ?? "Unable to save the structured inspection.");
+        return;
+      }
+      setMessage(data.message);
+      setSelectedInspection(String(data.inspectionId));
+      setNewInspection({
+        itemId: "",
+        conditionAssessment: "",
+        damageLevel: "Moderate",
+        inspectionResult: "Refurbishment recommended",
+        estimatedRepairCost: "",
+      });
+      await loadReports();
+    } catch (requestError) {
+      console.error("Failed to save structured inspection:", requestError);
+      setError("Unable to connect to the inspection service.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleCreateReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -162,6 +224,36 @@ export default function InspectionsPage() {
       <section className="itemsSection">
         {message && <p className="successMessage">{message}</p>}
         {error && <p className="errorMessage">{error}</p>}
+
+        {canCreate && (
+          <div className="formPanel">
+            <h2>Record structured inspection</h2>
+            <p className="formHelp">
+              This creates the authoritative inspection row and device status in MySQL.
+              Detailed findings are saved in MongoDB in the next form.
+            </p>
+            <form className="deviceForm" onSubmit={handleCreateInspection}>
+              <label htmlFor="candidateItem">Collected device</label>
+              <select id="candidateItem" required value={newInspection.itemId} onChange={(event) => setNewInspection({ ...newInspection, itemId: event.target.value })} disabled={inspectionCandidates.length === 0}>
+                <option value="">Select a collected device</option>
+                {inspectionCandidates.map((candidate) => <option key={candidate.itemId} value={candidate.itemId}>#{candidate.itemId} · {candidate.itemName}</option>)}
+              </select>
+              <label htmlFor="conditionAssessment">Condition assessment</label>
+              <textarea id="conditionAssessment" required maxLength={500} value={newInspection.conditionAssessment} onChange={(event) => setNewInspection({ ...newInspection, conditionAssessment: event.target.value })} />
+              <label htmlFor="damageLevel">Damage level</label>
+              <select id="damageLevel" value={newInspection.damageLevel} onChange={(event) => setNewInspection({ ...newInspection, damageLevel: event.target.value })}>
+                {["Low", "Moderate", "High", "Critical", "Unknown"].map((level) => <option key={level}>{level}</option>)}
+              </select>
+              <label htmlFor="inspectionResult">Inspection outcome</label>
+              <select id="inspectionResult" value={newInspection.inspectionResult} onChange={(event) => setNewInspection({ ...newInspection, inspectionResult: event.target.value })}>
+                {["Refurbishment recommended", "Recycling recommended"].map((outcome) => <option key={outcome}>{outcome}</option>)}
+              </select>
+              <label htmlFor="estimatedRepairCost">Estimated repair cost (optional)</label>
+              <input id="estimatedRepairCost" type="number" min="0" step="0.01" value={newInspection.estimatedRepairCost} onChange={(event) => setNewInspection({ ...newInspection, estimatedRepairCost: event.target.value })} />
+              <button type="submit" disabled={saving || inspectionCandidates.length === 0}>{saving ? "Saving inspection..." : "Save structured inspection"}</button>
+            </form>
+          </div>
+        )}
 
         {canCreate && (
           <div className="formPanel">
