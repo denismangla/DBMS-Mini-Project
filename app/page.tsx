@@ -9,9 +9,10 @@ export default function HomePage() {
           <p>Collection, recycling and refurbishment management platform</p>
         </div>
 
-        <Link href="/login" className="loginButton">
-          Login
-        </Link>
+        <div className="publicHeaderActions">
+          <Link href="/login" className="loginButton">Login</Link>
+          <Link href="/register" className="primaryAction">Create account</Link>
+        </div>
       </header>
 
       <section className="heroSection">
@@ -28,13 +29,16 @@ export default function HomePage() {
             <Link href="/login" className="primaryAction">
               Login to System
             </Link>
+            <Link href="/register" className="backButton">
+              Register as a customer
+            </Link>
           </div>
         </div>
       </section>
 
       <section className="publicFeatures">
         <div className="publicFeatureCard">
-          <h3>♻️ E-Waste Collection</h3>
+          <h3>E-Waste Collection</h3>
           <p>
             Register electronic waste and manage pickup requests through
             collection centers and collectors.
@@ -42,7 +46,7 @@ export default function HomePage() {
         </div>
 
         <div className="publicFeatureCard">
-          <h3>🔍 Inspection</h3>
+          <h3>Inspection</h3>
           <p>
             Record inspection outcomes and determine whether collected items
             should be recycled or refurbished.
@@ -50,7 +54,7 @@ export default function HomePage() {
         </div>
 
         <div className="publicFeatureCard">
-          <h3>🌱 Recycling</h3>
+          <h3>Recycling</h3>
           <p>
             Track recycling activity, recovered materials, quantities and
             values.
@@ -58,7 +62,7 @@ export default function HomePage() {
         </div>
 
         <div className="publicFeatureCard">
-          <h3>🛠️ Refurbishment</h3>
+          <h3>Refurbishment</h3>
           <p>
             Manage reusable devices and monitor their sale and payment status.
           </p>

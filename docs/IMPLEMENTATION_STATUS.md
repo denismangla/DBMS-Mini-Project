@@ -1,53 +1,78 @@
 # Implementation status
 
-## Customer registration and devices
+This status distinguishes existing behavior from new source changes. The
+additive migration and new APIs were not applied to a live database or
+end-to-end tested as part of the current code update.
+
+## Preserved customer features
 
 - `POST /api/auth/register` validates input, hashes passwords with bcryptjs,
-  checks duplicate emails, and always inserts the `CUSTOMER` role.
-- `/register` provides the registration form and link to login.
-- Authenticated customers can register devices on `/items`. The API validates
-  category/brand references, derives `user_id` from the signed session, and
-  inserts devices with the initial `Registered` status.
-- `GET /api/items` retains session-based customer ownership filtering and
-  provides category and brand options for the form.
+  checks duplicate emails and always creates a `CUSTOMER`.
+- `/register` preserves the customer registration flow.
+- Authenticated customers register devices on `/items`. The API validates
+  category/brand references, derives `user_id` from the signed session and
+  inserts the initial `Registered` status.
+- `GET /api/items` scopes customer devices to the session identity and
+  provides category and brand options.
+- Existing runtime/browser evidence for these paths is recorded in
+  [TESTING.md](./TESTING.md). The source contracts were not replaced.
 
-## Recycling and refurbishment
+## Existing processing and inspection behavior
 
-- `/recycling` displays MySQL recycling records and provides staff/admin status
-  controls backed by `PATCH /api/recycling/[id]`.
-- `/refurbishment` displays product, sale, payment, and processing information.
-  Staff/admin updates use `PATCH /api/refurbishment/[id]`.
-- A Sold product receives a sale date if one is not already recorded. Payment
-  status is not changed or processed. A paid Sold product cannot be reverted to
-  Available.
-- Customers see only operational records linked to their own devices and cannot
-  update statuses.
-
-## MongoDB inspection reports
-
-- `lib/mongodb.ts` caches a MongoDB client promise for development reloads.
+- `/recycling` lists MySQL recycling rows; staff/admin status changes use
+  `PATCH /api/recycling/[id]`.
+- `/refurbishment` lists refurbished product, sale, payment and processing
+  fields; staff/admin updates use `PATCH /api/refurbishment/[id]`.
+- A Sold product receives a sale date if absent. Existing update logic does not
+  process or conflate supplier payouts with refurbished-product buyer payment.
 - `GET` and staff/admin-only `POST /api/inspections` use
-  `smart_ewaste_nosql.inspection_reports`.
-- The API verifies inspection/item pairing against MySQL and customer report
-  reads are restricted to reports for their own items.
-- `/inspections` displays report notes, observations, component findings,
-  recommendations, and attachment names. Staff/admin users can create reports.
-- Configure `MONGODB_URI` and `MONGODB_DB=smart_ewaste_nosql` in `.env.local`.
-- The local MongoDB service, target database, collection, reads, and a
-  create/read-back cycle were verified using a temporary local URI override.
-  Existing component findings use the `notes` field; new reports follow that
-  same shape. The ignored local `.env.local` now contains the verified
-  localhost URI and database name; deployments should configure their own
-  reachable URI.
-- Browser verification displayed existing reports and a newly created report
-  after a full page reload.
+  `smart_ewaste_nosql.inspection_reports`. The API validates the MySQL
+  inspection/item pair and restricts customer reads to owned devices.
+- Staff/admin `POST /api/inspections/record` creates a MySQL inspection for a
+  collected device and changes the item state/history in one transaction. The
+  detailed MongoDB report is saved separately so a MongoDB failure cannot
+  silently undo or misrepresent the committed MySQL inspection.
+- Mongo attachment fields are names only; upload/storage is not implemented.
 
-## Data and security notes
+## Added workflow source (migration required)
 
-- No schema migrations, drops, or seed scripts were run.
-- Existing authentication/session helpers and MySQL pool are reused.
-- APIs use parameterized SQL and return generic database errors rather than
-  exposing query details or credentials.
-- `.env.example` contains placeholders only; keep `.env.local` untracked.
-- Executed commands and database-test limitations are documented in
+- `POST /api/offers` lets staff/admin create preliminary and final offers;
+  customers see only their own and can accept/decline through `PATCH`.
+- `POST /api/pickups` creates an owned-device request after accepted preliminary
+  offer; staff/admin can schedule, assign a collector from that center and
+  record receipt using `PATCH /api/pickups/[id]`.
+- Pickup list uses `LEFT JOIN COLLECTOR` so unassigned requests are visible.
+- `/payouts` records manual supplier payout against a customer-accepted final
+  offer. Database uniqueness and transactional status locking prevent a second
+  payout for that offer.
+- `ITEM_STATUS_HISTORY` records transitions made by these workflow operations.
+- These features require the one-time additive
+  `MySQL/migrations/20261028_workflow_tables.sql`. It has **not** been applied
+  or verified in the database during the current update.
+
+## Remaining workflow and authorization gaps
+
+- Inspection and disposition transition edge cases still need authenticated
+  integration tests. MySQL inspection and MongoDB report are separate commits;
+  no automatic cross-database atomic transaction is claimed.
+- A declined final offer is explicitly marked `Return Requested`, but no
+  return scheduling/resolution workflow exists yet.
+- Recycling/refurbishment list/status operations remain existing functionality;
+  there is no complete quality-gated refurbishment creation workflow.
+- Role-aware navigation and API role checks exist for current features, but
+  dedicated admin user/role/master-data management and audited overrides are
+  absent.
+- MongoDB update/delete endpoints, automated index provisioning and application
+  aggregation are not present.
+- No screenshots or individual contribution evidence are committed. Capture
+  actual evidence and map contributions to Git history; do not infer ownership.
+
+## Configuration and data safety
+
+- Existing `lib/auth.ts`, MySQL pool and MongoDB client are reused.
+- The new migration is additive. No database changes, drops, resets or seed
+  scripts were executed for this update.
+- `.env.example` contains variable names/placeholders only; keep `.env.local`
+  untracked and do not share its values.
+- Validation and historical runtime evidence are distinguished in
   [TESTING.md](./TESTING.md).
