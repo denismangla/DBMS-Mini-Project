@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import BrandLockup from "../components/brand-lockup";
 
 type LoginResponse = {
   success?: boolean;
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,52 +68,71 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="loginPage">
-      <div className="loginCard">
-        <h1>Smart E-Waste</h1>
-
-        <p className="loginSubtitle">
-          Login to access the management system
-        </p>
-        <form onSubmit={handleLogin}>
-          <label htmlFor="email">Email</label>
-
-          <input
-            id="email"
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-          />
-
-          <label htmlFor="password">Password</label>
-
-          <input
-            id="password"
-            type="password"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            required
-          />
-
-          <button type="submit" disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-
-        {message && <p className="loginMessage">{message}</p>}
-
-        <Link href="/register" className="loginBack">
-          Create a customer account
-        </Link>
-        <Link href="/" className="loginBack">
-          ← Back to Home
-        </Link>
-      </div>
+    <main className="authPage">
+      <section className="authStory">
+        <BrandLockup href="/" variant="public" />
+        <div className="authStoryContent">
+          <span className="heroKicker"><span /> A better loop starts here</span>
+          <h1>Small actions.<br /><em>Lasting impact.</em></h1>
+          <p>Keep your device journey clear, considered and moving toward its next useful chapter.</p>
+          <div className="authStoryLine"><span>01</span><i /><span>COLLECT</span><i /><span>RENEW</span><i /><span>RECOVER</span></div>
+        </div>
+        <p className="authStoryFoot">Thoughtful collection. Better reuse.</p>
+        <div className="authOrb authOrbOne" />
+        <div className="authOrb authOrbTwo" />
+      </section>
+      <section className="authFormPanel">
+        <div className="authFormTop">
+          <span>WELCOME BACK</span>
+          <Link href="/">Back to E-Kachra Mitra <span aria-hidden="true">↗</span></Link>
+        </div>
+        <div className="loginCard">
+          <span className="authFormEyebrow">YOUR CIRCULAR WORKSPACE</span>
+          <h2>Sign in</h2>
+          <p className="loginSubtitle">Pick up where your device journey left off.</p>
+          <form onSubmit={handleLogin}>
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
+            <div className="passwordLabelRow">
+              <label htmlFor="password">Password</label>
+            </div>
+            <div className="passwordField">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+              <button
+                className="passwordToggle"
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+            <button type="submit" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in to your account"} <span aria-hidden="true">↗</span>
+            </button>
+          </form>
+          {message && <p className="loginMessage" role="status">{message}</p>}
+          <p className="authSwitch">New to E-Kachra Mitra? <Link href="/register">Create an account</Link></p>
+        </div>
+        <p className="authLegal">Your account keeps your device and collection updates together.</p>
+      </section>
     </main>
   );
 }

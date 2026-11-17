@@ -93,6 +93,17 @@ export async function GET() {
       itemId: number;
       itemName: string;
     }>;
+    const [candidateRows] = managementAccess
+      ? await pool.query(
+          `SELECT e.item_id AS itemId, e.item_name AS itemName
+           FROM E_WASTE_ITEM e
+           WHERE e.item_status = 'Collected'
+             AND NOT EXISTS (
+               SELECT 1 FROM INSPECTION i WHERE i.item_id = e.item_id
+             )
+           ORDER BY e.item_id DESC`
+        )
+      : [[], []];
     const filter: Document = managementAccess
       ? {}
       : { itemId: { $in: inspections.map((inspection) => inspection.itemId) } };
@@ -120,6 +131,7 @@ export async function GET() {
         success: true,
         reports: serializedReports,
         inspectionOptions: inspections,
+        inspectionCandidates: candidateRows,
         userRole: user.role,
       },
       { headers: noStore }

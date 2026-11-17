@@ -53,6 +53,34 @@ export async function GET() {
         `,
       isManagement ? [] : [user.userId]
     );
+    const [statusRows] = await pool.query(
+      `SELECT COALESCE(item_status, 'Unspecified') AS status, COUNT(*) AS total
+       FROM E_WASTE_ITEM
+       ${isManagement ? "" : "WHERE user_id = ?"}
+       GROUP BY item_status
+       ORDER BY total DESC, status`,
+      isManagement ? [] : [user.userId]
+    );
+    const [pendingReviewRows] = isManagement
+      ? await pool.query(
+          "SELECT COUNT(*) AS total FROM E_WASTE_ITEM WHERE item_status = 'Registered'"
+        )
+      : [{ total: 0 }];
+    const [pendingPickupRows] = isManagement
+      ? await pool.query(
+          "SELECT COUNT(*) AS total FROM PICKUP_REQUEST WHERE pickup_status = 'Pending'"
+        )
+      : [{ total: 0 }];
+    const [inspectionQueueRows] = isManagement
+      ? await pool.query(
+          `SELECT COUNT(*) AS total
+           FROM E_WASTE_ITEM e
+           WHERE e.item_status = 'Collected'
+             AND NOT EXISTS (
+               SELECT 1 FROM INSPECTION i WHERE i.item_id = e.item_id
+             )`
+        )
+      : [{ total: 0 }];
 
     const itemRows = (items as CountRow[] | undefined) ?? [];
     const pickupRows = (pickups as CountRow[] | undefined) ?? [];
@@ -71,6 +99,16 @@ export async function GET() {
           totalPickups: Number(pickupRows[0]?.totalPickups ?? 0),
           totalRecycled: Number(recycledRows[0]?.totalRecycled ?? 0),
           totalRefurbished: Number(refurbishedRows[0]?.totalRefurbished ?? 0),
+          statusBreakdown: statusRows,
+          pendingReview: Number(
+            (pendingReviewRows as Array<{ total: number | string }>)[0]?.total ?? 0
+          ),
+          pendingPickups: Number(
+            (pendingPickupRows as Array<{ total: number | string }>)[0]?.total ?? 0
+          ),
+          awaitingInspection: Number(
+            (inspectionQueueRows as Array<{ total: number | string }>)[0]?.total ?? 0
+          ),
         },
       },
       {
