@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Smart E-Waste Management System",
-  description: "E-waste collection, recycling and refurbishment management platform",
+  title: "E-Kachra Mitra",
+  description: "E-Kachra Mitra — e-waste collection, recycling and refurbishment management platform",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

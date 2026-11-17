@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type Item = {
   item_id: number;
@@ -28,6 +29,7 @@ export default function ItemsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [form, setForm] = useState({
     itemName: "",
     description: "",
@@ -50,6 +52,7 @@ export default function ItemsPage() {
       }
 
       if (!response.ok || !data.success) {
+        setMessageTone("error");
         setMessage(data.message ?? "Unable to load e-waste items.");
         return;
       }
@@ -59,6 +62,7 @@ export default function ItemsPage() {
       setRole(data.userRole ?? "");
     } catch (error) {
       console.error("Failed to load items:", error);
+      setMessageTone("error");
       setMessage("Unable to load e-waste items.");
     } finally {
       setLoading(false);
@@ -73,6 +77,7 @@ export default function ItemsPage() {
     event.preventDefault();
     setSaving(true);
     setMessage("");
+    setMessageTone("success");
 
     try {
       const response = await fetch("/api/items", {
@@ -87,10 +92,12 @@ export default function ItemsPage() {
         return;
       }
       if (!response.ok || !data.success) {
+        setMessageTone("error");
         setMessage(data.message ?? "Unable to register this device.");
         return;
       }
 
+      setMessageTone("success");
       setMessage("Device registered successfully.");
       setForm({
         itemName: "",
@@ -105,6 +112,7 @@ export default function ItemsPage() {
       await loadItems();
     } catch (error) {
       console.error("Device registration request failed:", error);
+      setMessageTone("error");
       setMessage("Unable to connect to the device registration service.");
     } finally {
       setSaving(false);
@@ -112,7 +120,8 @@ export default function ItemsPage() {
   }
 
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div>
           <h1>E-Waste Items</h1>
@@ -243,11 +252,50 @@ export default function ItemsPage() {
             </p>
           </div>
         )}
-        {message && <p className="loginMessage">{message}</p>}
+        {message && (
+          <p
+            className={messageTone === "error" ? "errorMessage" : "successMessage"}
+            role={messageTone === "error" ? "alert" : "status"}
+          >
+            {message}
+          </p>
+        )}
         {loading ? (
           <p>Loading items...</p>
         ) : items.length === 0 ? (
           <p>No e-waste items found.</p>
+        ) : role === "CUSTOMER" ? (
+          <div className="deviceGrid">
+            {items.map((item) => (
+              <article className="deviceCard" key={item.item_id}>
+                <div className="deviceCardTop">
+                  <span className="deviceGlyph" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="7" y="2.5" width="10" height="19" rx="2" />
+                      <path d="M10 18.5h4" />
+                    </svg>
+                  </span>
+                  <span className={`statusBadge status-${item.item_status.toLowerCase().replaceAll(" ", "-")}`}>
+                    {item.item_status}
+                  </span>
+                </div>
+                <p className="deviceCardId">DEVICE #{item.item_id}</p>
+                <h2>{item.item_name}</h2>
+                <p className="deviceCardDescription">
+                  {item.description || "No additional description provided."}
+                </p>
+                <div className="deviceCardMeta">
+                  <span><small>Category</small><strong>{item.category_name}</strong></span>
+                  <span><small>Condition</small><strong>{item.condition || "Not specified"}</strong></span>
+                  <span><small>Weight</small><strong>{item.estimated_weight || "—"} kg</strong></span>
+                  <span><small>Next path</small><strong>{item.final_disposition ?? "Under review"}</strong></span>
+                </div>
+                <Link href="/offers" className="deviceCardLink">
+                  View related offers <span aria-hidden="true">→</span>
+                </Link>
+              </article>
+            ))}
+          </div>
         ) : (
           <div className="tableContainer">
             <table className="itemsTable">
@@ -292,6 +340,7 @@ export default function ItemsPage() {
           </div>
         )}
       </section>
-    </main>
+      </div>
+    </AppShell>
   );
 }

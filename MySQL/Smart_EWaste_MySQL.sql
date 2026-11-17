@@ -1,4 +1,4 @@
--- SMART E-WASTE COLLECTION, RECYCLING AND REFURBISHMENT MANAGEMENT SYSTEM
+-- E-Kachra Mitra: E-Waste Collection, Recycling and Refurbishment Management System
 
 CREATE DATABASE IF NOT EXISTS smart_ewaste_db;
 USE smart_ewaste_db;

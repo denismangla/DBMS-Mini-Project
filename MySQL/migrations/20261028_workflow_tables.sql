@@ -66,17 +66,46 @@ CREATE TABLE SUPPLIER_PAYOUT (
     payment_method VARCHAR(50) NULL,
     payout_status VARCHAR(20) NOT NULL DEFAULT 'Pending',
     transaction_reference VARCHAR(150) NULL,
+    failure_reason VARCHAR(1000) NULL,
     created_by_user_id INT NOT NULL,
+    updated_by_user_id INT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    processing_at DATETIME NULL,
     paid_at DATETIME NULL,
     CONSTRAINT uq_supplier_payout_offer UNIQUE (offer_id),
     CONSTRAINT fk_payout_offer
         FOREIGN KEY (offer_id) REFERENCES DEVICE_OFFER(offer_id),
     CONSTRAINT fk_payout_created_by
         FOREIGN KEY (created_by_user_id) REFERENCES `USER`(user_id),
+    CONSTRAINT fk_payout_updated_by
+        FOREIGN KEY (updated_by_user_id) REFERENCES `USER`(user_id),
     CONSTRAINT chk_payout_amount CHECK (amount > 0),
-    CONSTRAINT chk_payout_status CHECK (payout_status IN ('Pending', 'Paid', 'Failed')),
+    CONSTRAINT chk_payout_status
+        CHECK (payout_status IN ('Pending', 'Processing', 'Paid', 'Failed')),
+    CONSTRAINT chk_payout_failure_reason
+        CHECK (
+            payout_status <> 'Failed'
+            OR (failure_reason IS NOT NULL AND CHAR_LENGTH(TRIM(failure_reason)) > 0)
+        ),
     INDEX idx_payout_status_created (payout_status, created_at)
+);
+
+CREATE TABLE SUPPLIER_PAYOUT_HISTORY (
+    payout_history_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payout_id INT NOT NULL,
+    previous_status VARCHAR(20) NULL,
+    next_status VARCHAR(20) NOT NULL,
+    transaction_reference VARCHAR(150) NULL,
+    failure_reason VARCHAR(1000) NULL,
+    changed_by_user_id INT NOT NULL,
+    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_payout_history_payout
+        FOREIGN KEY (payout_id) REFERENCES SUPPLIER_PAYOUT(payout_id),
+    CONSTRAINT fk_payout_history_actor
+        FOREIGN KEY (changed_by_user_id) REFERENCES `USER`(user_id),
+    INDEX idx_payout_history_time (payout_id, changed_at)
 );
 
 CREATE TABLE ITEM_STATUS_HISTORY (

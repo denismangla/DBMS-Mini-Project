@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import AppShell from "./app-shell";
 
 type RecyclingRecord = {
   recycling_id: number;
@@ -148,7 +149,8 @@ export default function OperationalRecords({ kind }: OperationalRecordsProps) {
   const canEdit = role === "STAFF" || role === "ADMIN";
 
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div>
           <h1>{title}</h1>
@@ -348,6 +350,7 @@ export default function OperationalRecords({ kind }: OperationalRecordsProps) {
           </p>
         )}
       </section>
-    </main>
+      </div>
+    </AppShell>
   );
 }

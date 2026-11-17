@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type DashboardStats = {
   totalItems: number;
@@ -17,32 +18,12 @@ type DashboardStats = {
 
 type CurrentUser = { name: string; role: string };
 
-const customerLinks = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/items", label: "My devices" },
-  { href: "/offers", label: "Offers" },
-  { href: "/pickups", label: "Pickups" },
-  { href: "/payouts", label: "Payouts" },
-];
-
-const operationsLinks = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/items", label: "Device queue" },
-  { href: "/offers", label: "Valuations" },
-  { href: "/pickups", label: "Collections" },
-  { href: "/inspections", label: "Inspections" },
-  { href: "/recycling", label: "Recycling" },
-  { href: "/refurbishment", label: "Refurbishment" },
-  { href: "/payouts", label: "Supplier payouts" },
-];
-
 export default function DashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -79,69 +60,22 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [router]);
 
-  async function logout() {
-    setLoggingOut(true);
-    try {
-      const response = await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
-      if (!response.ok) {
-        setError("Unable to end your session. Please try again.");
-        return;
-      }
-      router.push("/login");
-    } catch (requestError) {
-      console.error("Logout failed:", requestError);
-      setError("Unable to connect to the sign-out service.");
-    } finally {
-      setLoggingOut(false);
-    }
-  }
-
   const management = user?.role === "STAFF" || user?.role === "ADMIN";
-  const links = management ? operationsLinks : customerLinks;
+  const admin = user?.role === "ADMIN";
   const maxStatusTotal = Math.max(
     1,
     ...(stats?.statusBreakdown ?? []).map((entry) => Number(entry.total))
   );
-  const dateLabel = new Intl.DateTimeFormat("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
 
   return (
-    <main className="appShell">
-      <aside className="sidebar">
-        <Link className="brandLockup" href="/dashboard" aria-label="Smart E-Waste home">
-          <span className="brandMark" aria-hidden="true">EW</span>
-          <span><strong>evercycle</strong><small>SMART E-WASTE</small></span>
-        </Link>
-        <p className="navGroupLabel">{management ? "OPERATIONS" : "YOUR ACCOUNT"}</p>
-        <nav className="sideNav" aria-label="Main navigation">
-          {links.map((link, index) => (
-            <Link href={link.href} key={link.href} aria-current={index === 0 ? "page" : undefined} className={index === 0 ? "sideNavLink active" : "sideNavLink"}>
-              <span className="navGlyph" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebarFooter">
-          <span className="accountAvatar" aria-hidden="true">{user?.name?.slice(0, 1).toUpperCase() ?? "U"}</span>
-          <span className="accountText"><strong>{user?.name ?? "Loading account"}</strong><small>{user?.role ?? "Verifying"}</small></span>
-          <button type="button" className="logoutIconButton" aria-label="Log out" title="Log out" onClick={() => void logout()} disabled={loggingOut}>↗</button>
-        </div>
-      </aside>
-      <div className="dashboardWorkspace">
-        <header className="dashboardTopbar">
-          <div className="topbarBreadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>Overview</strong></div>
-          <div className="topbarMeta"><span className="roleBadge">{user?.role ?? "Session"}</span><span>{dateLabel}</span></div>
-        </header>
-        <div className="dashboardContent">
+    <AppShell userRole={user?.role ?? ""} userName={user?.name}>
+      <div className="dashboardContent">
           <section className="dashboardIntro">
             <div>
-              <span className="eyebrow">{management ? "OPERATIONS OVERVIEW" : "CUSTOMER PORTAL"}</span>
-              <h1>{management ? user?.role === "ADMIN" ? "System overview" : "Operations overview" : `Good to see you, ${user?.name ?? "there"}`}</h1>
+              <span className="eyebrow">{admin ? "ADMIN CONTROL CENTER" : management ? "STAFF OPERATIONS" : "CUSTOMER PORTAL"}</span>
+              <h1>{management ? admin ? "System overview" : "Operations overview" : `Good to see you, ${user?.name ?? "there"}`}</h1>
               <p>{management
-                ? user?.role === "ADMIN"
+                ? admin
                   ? "Monitor collection and material recovery across the platform."
                   : "Prioritize new submissions, collection and inspection work."
                 : "Track each device and take the next step toward a more circular future."}</p>
@@ -160,15 +94,15 @@ export default function DashboardPage() {
           </section>
 
           {management ? (
-            <section className="dashboardPanels">
+            <section className={`dashboardPanels${admin ? " adminPanels" : ""}`}>
               <article className="panelCard queuePanel">
-                <div className="panelHeading"><div><span className="eyebrow">WORK TO DO</span><h2>Priority queues</h2></div><span className="liveLabel"><span aria-hidden="true" /> Live</span></div>
+                <div className="panelHeading"><div><span className="eyebrow">{admin ? "PLATFORM OVERSIGHT" : "LIVE WORK QUEUES"}</span><h2>{admin ? "Operational watchlist" : "Priority queues"}</h2></div><span className="liveLabel"><span aria-hidden="true" /> Live</span></div>
                 <Link className="queueRow" href="/items"><span className="queueNumber">{loading ? "—" : stats?.pendingReview ?? 0}</span><span><strong>New device submissions</strong><small>Awaiting an initial review</small></span><span className="queueArrow" aria-hidden="true">→</span></Link>
                 <Link className="queueRow" href="/pickups"><span className="queueNumber">{loading ? "—" : stats?.pendingPickups ?? 0}</span><span><strong>Pickups to schedule</strong><small>Pending scheduling or assignment</small></span><span className="queueArrow" aria-hidden="true">→</span></Link>
                 <Link className="queueRow" href="/inspections"><span className="queueNumber">{loading ? "—" : stats?.awaitingInspection ?? 0}</span><span><strong>Devices awaiting inspection</strong><small>Collected, with no inspection record</small></span><span className="queueArrow" aria-hidden="true">→</span></Link>
               </article>
               <article className="panelCard breakdownPanel">
-                <div className="panelHeading"><div><span className="eyebrow">DEVICE LIFECYCLE</span><h2>Current status mix</h2></div></div>
+                <div className="panelHeading"><div><span className="eyebrow">{admin ? "SYSTEM-WIDE ANALYTICS" : "DEVICE LIFECYCLE"}</span><h2>{admin ? "Device distribution" : "Current status mix"}</h2></div></div>
                 {loading ? <p className="stateMessage">Loading status data…</p> : !stats?.statusBreakdown.length ? (
                   <div className="chartEmpty"><span className="emptyChartMark" aria-hidden="true">—</span><p>No device data to visualize yet.</p></div>
                 ) : <div className="statusChart" role="list" aria-label="Devices grouped by status">
@@ -194,9 +128,8 @@ export default function DashboardPage() {
               </article>
             </section>
           )}
-          <footer className="workspaceFooter"><span>Smart E-Waste Management</span><span>Responsible collection. Better reuse.</span></footer>
+          <footer className="workspaceFooter"><span>E-Kachra Mitra</span><span>Responsible collection. Better reuse.</span></footer>
         </div>
-      </div>
-    </main>
+    </AppShell>
   );
 }

@@ -57,14 +57,22 @@ testing.
   ownership is assigned by the server.
 - Inspection attachment fields store names only. This feature does not upload
   files.
-- The current source adds offers, pickup creation/assignment and manual
-  supplier-payout APIs. These require the additive workflow migration and were
-  not run against MySQL/MongoDB during this update.
-- The current source's customer, staff and admin UIs were not end-to-end
-  authenticated with configured role accounts during this update.
-- No live migration, saved screenshot files, full responsive browser matrix,
-  trigger execution, SQL view/index verification or authenticated team-role
-  workflow audit was performed as part of this update.
+- The additive workflow migration was applied to `smart_ewaste_db` after the
+  user confirmed a restorable backup. The migration added the offer, supplier
+  payout, payout history and item status history tables, and made unassigned
+  pickup collectors nullable.
+- Authenticated API tests exercised preliminary/final offers, pickup
+  scheduling/completion, inspection, payout creation, processing, payment,
+  failure, retry, duplicate rejection, declined-offer rejection and customer
+  ownership scoping. Temporary test users and workflow records were cleaned
+  up after each run.
+- Customer login used the normal login route. Management API tests used a
+  short-lived signed `ADMIN` session for an existing administrator because
+  no management password was used in the test. This verifies the route's
+  role/session checks, not password-based management login.
+- The customer/staff pages were not tested in a browser with authenticated
+  users. No full responsive browser matrix or MongoDB report write was part of
+  the offer/payout verification.
 
 ## Current-source checks
 
@@ -75,6 +83,13 @@ Run results for the current implementation:
 - `npm run build`: passed; Next.js 16.3.6 generated the public pages and
   compiled `/api/offers`, `/api/payouts`, `/api/pickups/[id]` and
   `/api/inspections/record`.
+- Live MySQL offer/payout API integration: passed for the flows listed above.
+  Both customer and management `GET /api/offers` and `GET /api/payouts`
+  returned HTTP 200 after migration; unauthenticated GETs returned 401.
+- The customer read back the persisted paid amount, status and transaction
+  reference. Another customer could not see that offer or payout.
+- Failed payout required a reason, remained visible to its customer, and could
+  be retried without creating a duplicate payout.
 - Production server smoke check: `http://localhost:3000` returned HTTP 200.
 - Unauthenticated requests to the offer/payout GET routes and pickup/
   inspection mutation routes returned 401 before database access.
@@ -85,23 +100,26 @@ Run results for the current implementation:
   repository.
 - `git diff --check`: passed.
 
-These are build/UI smoke checks only. They do not prove MySQL migration
-execution, MongoDB behavior, API state transitions, authorization under
-authenticated roles, or the end-to-end workflow.
+The browser checks remain smoke checks; the authenticated MySQL API workflow
+was tested separately with temporary test records.
 
 ## Database readiness probe
 
 The configured services were queried read-only without displaying connection
 values or reading document contents:
 
-- MySQL connection succeeded to `smart_ewaste_db` on MySQL `8.0.46`. The live
-  `PICKUP_REQUEST.collector_id` is `NOT NULL`; the three workflow tables are
-  absent. Baseline row counts reported by read-only `COUNT(*)` were 7 users,
-  13 devices, 7 pickups and 10 inspections.
-- The migration was **not applied**. A restorable backup was not confirmed,
-  and applying DDL to the existing database was left as an explicit operator
-  step. The migration source changes no existing row data, but its view/index/
-  table DDL still needs review, backup and successful post-migration checks.
+- MySQL connection succeeded to `smart_ewaste_db` on MySQL `8.0.46`. Before
+  migration, `DEVICE_OFFER`, `SUPPLIER_PAYOUT` and `ITEM_STATUS_HISTORY` were
+  absent, and `PICKUP_REQUEST.collector_id` was `NOT NULL`.
+- After the user confirmed a restorable backup, the existing
+  `MySQL/migrations/20261028_workflow_tables.sql` migration was applied once.
+  The four workflow tables, foreign keys, positive-amount/status checks,
+  unique payout-per-offer constraint, indexes, pickup collector nullability
+  and pending-pickup view were verified from `information_schema`.
+- After temporary integration records were cleaned up, the base database
+  counts remained 7 users, 13 devices, 7 pickups and 10 inspections. Offer,
+  payout and workflow-history counts were zero; no existing customer or device
+  records were deleted or reset.
 - MongoDB connection succeeded for `smart_ewaste_nosql`. The
   `inspection_reports` collection exists and currently reports index names
   `_id_` and `inspectionId_1`. No report contents were read or modified.

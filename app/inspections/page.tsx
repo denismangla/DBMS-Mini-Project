@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type InspectionOption = {
   inspectionId: number;
@@ -210,7 +211,8 @@ export default function InspectionsPage() {
   const canCreate = role === "STAFF" || role === "ADMIN";
 
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div>
           <h1>Inspection Reports</h1>
@@ -403,6 +405,7 @@ export default function InspectionsPage() {
           </div>
         )}
       </section>
-    </main>
+      </div>
+    </AppShell>
   );
 }

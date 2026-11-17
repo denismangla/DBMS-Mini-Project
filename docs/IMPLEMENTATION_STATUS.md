@@ -1,8 +1,9 @@
 # Implementation status
 
 This status distinguishes existing behavior from new source changes. The
-additive migration and new APIs were not applied to a live database or
-end-to-end tested as part of the current code update.
+additive workflow migration was applied to the configured `smart_ewaste_db`
+after a restorable backup was confirmed, and the offer/payout APIs were tested
+against that database using temporary records that were removed afterward.
 
 ## Preserved customer features
 
@@ -34,7 +35,7 @@ end-to-end tested as part of the current code update.
   silently undo or misrepresent the committed MySQL inspection.
 - Mongo attachment fields are names only; upload/storage is not implemented.
 
-## Added workflow source (migration required)
+## Offer, pickup and payout workflows
 
 - `POST /api/offers` lets staff/admin create preliminary and final offers;
   customers see only their own and can accept/decline through `PATCH`.
@@ -44,16 +45,20 @@ end-to-end tested as part of the current code update.
 - Pickup list uses `LEFT JOIN COLLECTOR` so unassigned requests are visible.
 - `/payouts` records manual supplier payout against a customer-accepted final
   offer. Database uniqueness and transactional status locking prevent a second
-  payout for that offer.
+  payout for that offer. Payout status transitions are `Pending` ->
+  `Processing` -> `Paid` or `Failed`; failed payouts can be retried through
+  `Processing`.
+- `SUPPLIER_PAYOUT_HISTORY` records each payout status transition, actor,
+  transaction reference and failure reason.
 - `ITEM_STATUS_HISTORY` records transitions made by these workflow operations.
-- These features require the one-time additive
-  `MySQL/migrations/20261028_workflow_tables.sql`. It has **not** been applied
-  or verified in the database during the current update.
+- The one-time additive `MySQL/migrations/20261028_workflow_tables.sql` has
+  been applied to `smart_ewaste_db` and its tables, constraints and indexes
+  were verified.
 
 ## Remaining workflow and authorization gaps
 
-- Inspection and disposition transition edge cases still need authenticated
-  integration tests. MySQL inspection and MongoDB report are separate commits;
+- MySQL offer, pickup, inspection and payout API transitions were exercised
+  with temporary test records. The MongoDB inspection-report write is separate;
   no automatic cross-database atomic transaction is claimed.
 - A declined final offer is explicitly marked `Return Requested`, but no
   return scheduling/resolution workflow exists yet.

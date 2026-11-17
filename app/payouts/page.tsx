@@ -3,18 +3,27 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type Payout = {
   payout_id: number;
   offer_id: number;
+  item_id: number;
   item_name: string;
+  customer_name: string;
   amount: string | number;
   currency: string;
   payment_method: string | null;
-  payout_status: "Pending" | "Paid" | "Failed";
+  payout_status: "Pending" | "Processing" | "Paid" | "Failed";
   transaction_reference: string | null;
+  failure_reason: string | null;
   created_at: string;
+  processing_at: string | null;
+  paid_at: string | null;
 };
+
+type PayoutStatus = Payout["payout_status"];
+type PaymentDetails = { transactionReference: string; failureReason: string };
 
 type Offer = {
   offer_id: number;
@@ -36,11 +45,26 @@ export default function PayoutsPage() {
   const [role, setRole] = useState("");
   const [offerId, setOfferId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Manual bank transfer");
-  const [reference, setReference] = useState("");
+  const [paymentDetails, setPaymentDetails] = useState<Record<number, PaymentDetails>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  function updatePaymentDetail(
+    payoutId: number,
+    field: keyof PaymentDetails,
+    value: string
+  ) {
+    setPaymentDetails((current) => ({
+      ...current,
+      [payoutId]: {
+        transactionReference: current[payoutId]?.transactionReference ?? "",
+        failureReason: current[payoutId]?.failureReason ?? "",
+        [field]: value,
+      },
+    }));
+  }
 
   const load = useCallback(async () => {
     try {
@@ -48,7 +72,7 @@ export default function PayoutsPage() {
         fetch("/api/payouts", { cache: "no-store" }),
         fetch("/api/offers", { cache: "no-store" }),
       ]);
-      if (payoutResponse.status === 401) {
+      if (payoutResponse.status === 401 || offerResponse.status === 401) {
         router.push("/login");
         return;
       }
@@ -107,7 +131,7 @@ export default function PayoutsPage() {
     }
   }
 
-  async function finalizePayout(payoutId: number, status: "Paid" | "Failed") {
+  async function updatePayout(payoutId: number, status: PayoutStatus) {
     setSaving(true);
     setMessage("");
     setError("");
@@ -115,7 +139,12 @@ export default function PayoutsPage() {
       const response = await fetch("/api/payouts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payoutId, status, transactionReference: reference }),
+        body: JSON.stringify({
+          payoutId,
+          status,
+          transactionReference: paymentDetails[payoutId]?.transactionReference ?? "",
+          failureReason: paymentDetails[payoutId]?.failureReason ?? "",
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
@@ -123,7 +152,11 @@ export default function PayoutsPage() {
         return;
       }
       setMessage(data.message);
-      setReference("");
+      setPaymentDetails((current) => {
+        const next = { ...current };
+        delete next[payoutId];
+        return next;
+      });
       await load();
     } catch (requestError) {
       console.error("Failed to finalize payout:", requestError);
@@ -135,7 +168,8 @@ export default function PayoutsPage() {
 
   const management = role === "STAFF" || role === "ADMIN";
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div><span className="eyebrow">Supplier settlement</span><h1>{management ? "Payout operations" : "Your payout status"}</h1><p>Supplier payouts are tracked separately from sales of refurbished products.</p></div>
         <Link href="/dashboard" className="backButton">Dashboard</Link>
@@ -162,18 +196,48 @@ export default function PayoutsPage() {
           <div className="emptyState"><h2>No payouts recorded</h2><p>Accepted final supplier offers will be listed here when a payout is recorded.</p></div>
         ) : (
           <div className="tableContainer"><table className="itemsTable">
-            <thead><tr><th>Device</th><th>Amount</th><th>Method</th><th>Status</th><th>Reference</th><th>Action</th></tr></thead>
+            <thead><tr>{management && <th>Customer</th>}<th>Device</th><th>Amount</th><th>Method</th><th>Status</th><th>Reference / failure</th><th>Paid date</th>{management && <th>Action</th>}</tr></thead>
             <tbody>{payouts.map((payout) => <tr key={payout.payout_id}>
-              <td><strong>{payout.item_name}</strong><span className="tableSubtext">Payout #{payout.payout_id}</span></td>
+              {management && <td>{payout.customer_name}</td>}
+              <td><strong>{payout.item_name}</strong><span className="tableSubtext">Item #{payout.item_id} · Payout #{payout.payout_id}</span></td>
               <td>{amount(payout.amount, payout.currency)}</td>
               <td>{payout.payment_method ?? "Not specified"}</td>
               <td><span className={`statusBadge status-${payout.payout_status.toLowerCase()}`}>{payout.payout_status}</span></td>
-              <td>{payout.transaction_reference ?? "—"}</td>
-              <td>{management && payout.payout_status === "Pending" ? <div className="tableActions"><input aria-label={`Transaction reference for payout ${payout.payout_id}`} maxLength={150} placeholder="Reference (optional)" value={reference} onChange={(event) => setReference(event.target.value)} /><button className="primaryButton" disabled={saving} onClick={() => void finalizePayout(payout.payout_id, "Paid")}>Mark paid</button><button className="outlineButton" disabled={saving} onClick={() => void finalizePayout(payout.payout_id, "Failed")}>Mark failed</button></div> : "—"}</td>
+              <td>{payout.transaction_reference ?? "—"}{payout.failure_reason && <span className="tableSubtext">Failure: {payout.failure_reason}</span>}</td>
+              <td>{payout.paid_at ? new Date(payout.paid_at).toLocaleDateString("en-IN") : "—"}</td>
+              {management && <td>
+                {payout.payout_status === "Pending" && (
+                  <button className="primaryButton" disabled={saving} onClick={() => void updatePayout(payout.payout_id, "Processing")}>Start processing</button>
+                )}
+                {payout.payout_status === "Failed" && (
+                  <button className="primaryButton" disabled={saving} onClick={() => void updatePayout(payout.payout_id, "Processing")}>Retry payout</button>
+                )}
+                {payout.payout_status === "Processing" && (
+                  <div className="tableActions">
+                    <input
+                      aria-label={`Transaction reference for payout ${payout.payout_id}`}
+                      maxLength={150}
+                      placeholder="Reference (optional)"
+                      value={paymentDetails[payout.payout_id]?.transactionReference ?? ""}
+                      onChange={(event) => updatePaymentDetail(payout.payout_id, "transactionReference", event.target.value)}
+                    />
+                    <input
+                      aria-label={`Failure reason for payout ${payout.payout_id}`}
+                      maxLength={1000}
+                      placeholder="Failure reason (required to fail)"
+                      value={paymentDetails[payout.payout_id]?.failureReason ?? ""}
+                      onChange={(event) => updatePaymentDetail(payout.payout_id, "failureReason", event.target.value)}
+                    />
+                    <button className="primaryButton" disabled={saving} onClick={() => void updatePayout(payout.payout_id, "Paid")}>Mark paid</button>
+                    <button className="outlineButton" disabled={saving} onClick={() => void updatePayout(payout.payout_id, "Failed")}>Mark failed</button>
+                  </div>
+                )}
+              </td>}
             </tr>)}</tbody>
           </table></div>
         )}
       </section>
-    </main>
+      </div>
+    </AppShell>
   );
 }

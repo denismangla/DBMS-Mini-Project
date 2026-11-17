@@ -1,8 +1,9 @@
-# Smart E-Waste Management System
+# E-Kachra Mitra
 
-A Next.js App Router application for customer device registration and
-role-specific e-waste operations. MySQL is authoritative for structured device
-and workflow data; MongoDB stores flexible inspection-report details.
+E-Kachra Mitra is a Next.js App Router application for customer device
+registration and role-specific e-waste operations. MySQL is authoritative for
+structured device and workflow data; MongoDB stores flexible inspection-report
+details.
 
 ## Problem, objectives and scope
 

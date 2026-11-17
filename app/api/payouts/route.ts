@@ -36,11 +36,14 @@ export async function GET() {
     const customer = user.role === "CUSTOMER";
     const [rows] = await pool.query(
       `SELECT p.payout_id, p.offer_id, o.item_id, e.item_name,
+              e.user_id, u.full_name AS customer_name,
               p.amount, p.currency, p.payment_method, p.payout_status,
-              p.transaction_reference, p.created_at, p.paid_at
+              p.transaction_reference, p.failure_reason, p.created_at,
+              p.updated_at, p.processing_at, p.paid_at
        FROM SUPPLIER_PAYOUT p
        JOIN DEVICE_OFFER o ON o.offer_id = p.offer_id
        JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
+       JOIN \`USER\` u ON u.user_id = e.user_id
        ${customer ? "WHERE e.user_id = ?" : ""}
        ORDER BY p.created_at DESC, p.payout_id DESC`,
       customer ? [user.userId] : []
@@ -94,8 +97,12 @@ export async function POST(request: Request) {
     await connection.beginTransaction();
     transactionStarted = true;
     const [offers] = await connection.query(
-      `SELECT offer_id, amount, currency, offer_stage, offer_status
-       FROM DEVICE_OFFER WHERE offer_id = ? FOR UPDATE`,
+      `SELECT o.offer_id, o.amount, o.currency, o.offer_stage, o.offer_status,
+              o.disposition, e.item_status, e.final_disposition
+       FROM DEVICE_OFFER o
+       JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
+       WHERE o.offer_id = ?
+       FOR UPDATE`,
       [offerId]
     );
     const offer = (offers as Array<{
@@ -104,8 +111,17 @@ export async function POST(request: Request) {
       currency: string;
       offer_stage: string;
       offer_status: string;
+      disposition: string | null;
+      item_status: string | null;
+      final_disposition: string | null;
     }>)[0];
-    if (!offer || offer.offer_stage !== "Final" || offer.offer_status !== "Accepted") {
+    if (
+      !offer ||
+      offer.offer_stage !== "Final" ||
+      offer.offer_status !== "Accepted" ||
+      offer.item_status !== "Final Offer Accepted" ||
+      offer.final_disposition !== offer.disposition
+    ) {
       await connection.rollback();
       transactionStarted = false;
       return NextResponse.json(
@@ -127,9 +143,17 @@ export async function POST(request: Request) {
     }
     const [result] = await connection.query(
       `INSERT INTO SUPPLIER_PAYOUT
-        (offer_id, amount, currency, payment_method, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [offerId, offer.amount, offer.currency, paymentMethod || null, user.userId]
+        (offer_id, amount, currency, payment_method, created_by_user_id,
+         updated_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [offerId, offer.amount, offer.currency, paymentMethod || null, user.userId, user.userId]
+    );
+    const payoutId = (result as { insertId: number }).insertId;
+    await connection.query(
+      `INSERT INTO SUPPLIER_PAYOUT_HISTORY
+        (payout_id, previous_status, next_status, changed_by_user_id)
+       VALUES (?, NULL, 'Pending', ?)`,
+      [payoutId, user.userId]
     );
     await connection.commit();
     transactionStarted = false;
@@ -137,7 +161,7 @@ export async function POST(request: Request) {
       {
         success: true,
         message: "Supplier payout recorded as pending manual payment.",
-        payoutId: (result as { insertId: number }).insertId,
+        payoutId,
       },
       { status: 201, headers: noStore }
     );
@@ -165,7 +189,7 @@ export async function PATCH(request: Request) {
   let connection: Awaited<ReturnType<typeof pool.getConnection>> | undefined;
   let transactionStarted = false;
   try {
-    await requireRole(["STAFF", "ADMIN"]);
+    const user = await requireRole(["STAFF", "ADMIN"]);
     let body: unknown;
     try {
       body = await request.json();
@@ -187,13 +211,17 @@ export async function PATCH(request: Request) {
       typeof body.transactionReference === "string"
         ? body.transactionReference.trim()
         : "";
+    const failureReason =
+      typeof body.failureReason === "string" ? body.failureReason.trim() : "";
     if (
       !payoutId ||
-      (status !== "Paid" && status !== "Failed") ||
-      reference.length > 150
+      (status !== "Processing" && status !== "Paid" && status !== "Failed") ||
+      reference.length > 150 ||
+      failureReason.length > 1000 ||
+      (status === "Failed" && !failureReason)
     ) {
       return NextResponse.json(
-        { success: false, message: "Provide a valid payout and final status." },
+        { success: false, message: "Provide a valid payout status, transaction reference, and failure reason when marking a payout failed." },
         { status: 400, headers: noStore }
       );
     }
@@ -214,25 +242,69 @@ export async function PATCH(request: Request) {
         { status: 404, headers: noStore }
       );
     }
-    if (payout.payout_status !== "Pending") {
+    const allowedTransition =
+      status === "Processing"
+        ? payout.payout_status === "Pending" || payout.payout_status === "Failed"
+        : payout.payout_status === "Processing";
+    if (!allowedTransition) {
       await connection.rollback();
       transactionStarted = false;
       return NextResponse.json(
-        { success: false, message: "Only pending payouts can be finalized." },
+        { success: false, message: "The payout cannot make that status transition." },
         { status: 409, headers: noStore }
       );
     }
     await connection.query(
       `UPDATE SUPPLIER_PAYOUT
-       SET payout_status = ?, transaction_reference = ?,
-           paid_at = CASE WHEN ? = 'Paid' THEN CURRENT_TIMESTAMP ELSE NULL END
+       SET payout_status = ?,
+           transaction_reference = CASE
+             WHEN ? = 'Processing' THEN NULL
+             ELSE ?
+           END,
+           failure_reason = CASE
+             WHEN ? = 'Failed' THEN ?
+             ELSE NULL
+           END,
+           processing_at = CASE
+             WHEN ? = 'Processing' THEN CURRENT_TIMESTAMP
+             ELSE processing_at
+           END,
+           paid_at = CASE
+             WHEN ? = 'Paid' THEN CURRENT_TIMESTAMP
+             ELSE NULL
+           END,
+           updated_by_user_id = ?
        WHERE payout_id = ?`,
-      [status, reference || null, status, payoutId]
+      [
+        status,
+        status,
+        reference || null,
+        status,
+        failureReason || null,
+        status,
+        status,
+        user.userId,
+        payoutId,
+      ]
+    );
+    await connection.query(
+      `INSERT INTO SUPPLIER_PAYOUT_HISTORY
+        (payout_id, previous_status, next_status, transaction_reference,
+         failure_reason, changed_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        payoutId,
+        payout.payout_status,
+        status,
+        status === "Processing" ? null : reference || null,
+        status === "Failed" ? failureReason : null,
+        user.userId,
+      ]
     );
     await connection.commit();
     transactionStarted = false;
     return NextResponse.json(
-      { success: true, message: `Payout marked ${status.toLowerCase()}.` },
+      { success: true, message: `Payout moved to ${status.toLowerCase()}.`, status },
       { headers: noStore }
     );
   } catch (error) {

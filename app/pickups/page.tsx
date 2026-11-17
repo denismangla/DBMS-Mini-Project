@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type Pickup = {
   pickup_id: number;
@@ -150,7 +151,8 @@ export default function PickupsPage() {
   const management = role === "STAFF" || role === "ADMIN";
 
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div>
           <span className="eyebrow">Collection operations</span>
@@ -211,6 +213,7 @@ export default function PickupsPage() {
           </table></div>
         )}
       </section>
-    </main>
+      </div>
+    </AppShell>
   );
 }

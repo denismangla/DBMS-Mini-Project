@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import AppShell from "../components/app-shell";
 
 type Offer = {
   offer_id: number;
@@ -36,6 +37,11 @@ export default function OffersPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [pendingDecision, setPendingDecision] = useState<{
+    offer: Offer;
+    decision: "Accepted" | "Declined";
+  } | null>(null);
+  const decisionDialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState({
     itemId: "",
     stage: "Preliminary",
@@ -76,6 +82,13 @@ export default function OffersPage() {
   useEffect(() => {
     void Promise.resolve().then(loadData);
   }, [loadData]);
+
+  useEffect(() => {
+    const dialog = decisionDialog.current;
+    if (!dialog) return;
+    if (pendingDecision && !dialog.open) dialog.showModal();
+    if (!pendingDecision && dialog.open) dialog.close();
+  }, [pendingDecision]);
 
   async function createOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,6 +146,7 @@ export default function OffersPage() {
         return;
       }
       setMessage(data.message);
+      setPendingDecision(null);
       await loadData();
     } catch (requestError) {
       console.error("Failed to record offer decision:", requestError);
@@ -145,7 +159,8 @@ export default function OffersPage() {
   const management = role === "STAFF" || role === "ADMIN";
 
   return (
-    <main className="itemsPage">
+    <AppShell userRole={role}>
+      <div className="pageContent">
       <header className="pageHeader">
         <div>
           <span className="eyebrow">Offers & valuation</span>
@@ -208,8 +223,8 @@ export default function OffersPage() {
                 <p className="description">Created {new Date(offer.created_at).toLocaleDateString("en-IN")}</p>
                 {!management && offer.offer_status === "Pending" && (
                   <div className="offerActions">
-                    <button className="primaryButton" disabled={saving} onClick={() => void decide(offer.offer_id, "Accepted")}>Accept offer</button>
-                    <button className="outlineButton" disabled={saving} onClick={() => void decide(offer.offer_id, "Declined")}>Decline offer</button>
+                    <button className="primaryButton" disabled={saving} onClick={() => setPendingDecision({ offer, decision: "Accepted" })}>Accept offer</button>
+                    <button className="outlineButton" disabled={saving} onClick={() => setPendingDecision({ offer, decision: "Declined" })}>Decline offer</button>
                   </div>
                 )}
                 {!management && offer.offer_status === "Accepted" && offer.offer_stage === "Preliminary" && <Link className="primaryAction" href="/pickups">Request a pickup</Link>}
@@ -219,6 +234,46 @@ export default function OffersPage() {
           </div>
         )}
       </section>
-    </main>
+      <dialog
+        ref={decisionDialog}
+        className="confirmationDialog"
+        aria-labelledby="offer-decision-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          setPendingDecision(null);
+        }}
+      >
+        {pendingDecision && (
+          <>
+            <span className="authFormEyebrow">CUSTOMER DECISION</span>
+            <h2 id="offer-decision-title">
+              {pendingDecision.decision === "Accepted" ? "Accept this offer?" : "Decline this offer?"}
+            </h2>
+            <p>
+              {pendingDecision.offer.item_name} · {money(pendingDecision.offer.amount, pendingDecision.offer.currency)}
+            </p>
+            <p className="formHelp">
+              {pendingDecision.decision === "Accepted"
+                ? "Your decision will be recorded for this offer."
+                : "This offer will be marked as declined. You can review the offer details before confirming."}
+            </p>
+            <div className="dialogActions">
+              <button className="outlineButton" type="button" onClick={() => setPendingDecision(null)}>
+                Go back
+              </button>
+              <button
+                className="primaryButton"
+                type="button"
+                disabled={saving}
+                onClick={() => void decide(pendingDecision.offer.offer_id, pendingDecision.decision)}
+              >
+                {saving ? "Saving..." : `Confirm ${pendingDecision.decision.toLowerCase()}`}
+              </button>
+            </div>
+          </>
+        )}
+      </dialog>
+      </div>
+    </AppShell>
   );
 }
