@@ -80,7 +80,14 @@ export async function GET() {
     const managementAccess = user.role !== "CUSTOMER";
     const [inspectionRows] = await pool.query(
       `
-      SELECT i.inspection_id AS inspectionId, i.item_id AS itemId, e.item_name AS itemName
+      SELECT i.inspection_id AS inspectionId, i.item_id AS itemId,
+             e.item_name AS itemName, i.inspection_date AS inspectionDate,
+             i.condition_assessment AS conditionAssessment,
+             i.damage_level AS damageLevel,
+             i.inspection_result AS inspectionResult,
+             i.estimated_repair_cost AS estimatedRepairCost,
+             i.processing_type AS processingType,
+             i.processing_status AS processingStatus
       FROM INSPECTION i
       JOIN E_WASTE_ITEM e ON i.item_id = e.item_id
       ${managementAccess ? "" : "WHERE e.user_id = ?"}
@@ -92,6 +99,13 @@ export async function GET() {
       inspectionId: number;
       itemId: number;
       itemName: string;
+      inspectionDate: Date | string;
+      conditionAssessment: string | null;
+      damageLevel: string | null;
+      inspectionResult: string | null;
+      estimatedRepairCost: number | string | null;
+      processingType: string | null;
+      processingStatus: string | null;
     }>;
     const [candidateRows] = managementAccess
       ? await pool.query(

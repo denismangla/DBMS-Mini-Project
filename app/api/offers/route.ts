@@ -11,13 +11,52 @@ type OfferBody = {
   amount?: unknown;
   currency?: unknown;
   reason?: unknown;
+  valuationNotes?: unknown;
   disposition?: unknown;
   offerId?: unknown;
   decision?: unknown;
 };
 
+type PendingValuation = {
+  item_id: number;
+  item_name: string;
+  description: string | null;
+  condition: string | null;
+  category_name: string;
+  brand_name: string | null;
+  customer_name: string;
+  submitted_at: Date | string | null;
+  item_status: string;
+  previous_offer_status: string | null;
+  previous_offer_amount: string | number | null;
+  previous_offer_currency: string | null;
+};
+
+type OfferStats = {
+  preliminary: number;
+  final: number;
+  awaitingResponse: number;
+  accepted: number;
+  declined: number;
+};
+
+const emptyOfferStats: OfferStats = {
+  preliminary: 0,
+  final: 0,
+  awaitingResponse: 0,
+  accepted: 0,
+  declined: 0,
+};
+
 function isRecord(value: unknown): value is OfferBody {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSupportedCurrency(currency: string) {
+  return (
+    /^[A-Z]{3}$/.test(currency) &&
+    Intl.supportedValuesOf("currency").includes(currency)
+  );
 }
 
 function authFailure(error: unknown) {
@@ -50,7 +89,7 @@ export async function GET() {
     const [offers] = await pool.query(
       `
       SELECT o.offer_id, o.item_id, e.item_name, o.offer_stage, o.amount,
-             o.currency, o.reason, o.disposition, o.offer_status,
+             o.currency, o.reason, o.valuation_notes, o.disposition, o.offer_status,
              o.created_at, o.decided_at
       FROM DEVICE_OFFER o
       JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
@@ -59,8 +98,82 @@ export async function GET() {
       `,
       customer ? [user.userId] : []
     );
+
+    let pendingValuations: PendingValuation[] = [];
+    let offerStats = emptyOfferStats;
+    if (!customer) {
+      const [queueRows] = await pool.query(
+        `
+        SELECT e.item_id, e.item_name, e.description, e.\`condition\`,
+               e.item_status, e.submitted_at, c.category_name, b.brand_name,
+               u.full_name AS customer_name,
+               (
+                 SELECT o.offer_status
+                 FROM DEVICE_OFFER o
+                 WHERE o.item_id = e.item_id AND o.offer_stage = 'Preliminary'
+                 ORDER BY o.offer_id DESC
+                 LIMIT 1
+               ) AS previous_offer_status,
+               (
+                 SELECT o.amount
+                 FROM DEVICE_OFFER o
+                 WHERE o.item_id = e.item_id AND o.offer_stage = 'Preliminary'
+                 ORDER BY o.offer_id DESC
+                 LIMIT 1
+               ) AS previous_offer_amount,
+               (
+                 SELECT o.currency
+                 FROM DEVICE_OFFER o
+                 WHERE o.item_id = e.item_id AND o.offer_stage = 'Preliminary'
+                 ORDER BY o.offer_id DESC
+                 LIMIT 1
+               ) AS previous_offer_currency
+        FROM E_WASTE_ITEM e
+        JOIN CATEGORY c ON c.category_id = e.category_id
+        LEFT JOIN BRAND b ON b.brand_id = e.brand_id
+        JOIN \`USER\` u ON u.user_id = e.user_id
+        WHERE e.item_status IN ('Registered', 'Estimate Declined')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM DEVICE_OFFER active_offer
+            WHERE active_offer.item_id = e.item_id
+              AND active_offer.offer_stage = 'Preliminary'
+              AND active_offer.offer_status IN ('Pending', 'Accepted')
+          )
+        ORDER BY e.submitted_at DESC, e.item_id DESC
+        `
+      );
+      pendingValuations = queueRows as PendingValuation[];
+
+      const [statsRows] = await pool.query(
+        `
+        SELECT
+          COALESCE(SUM(offer_stage = 'Preliminary'), 0) AS preliminary,
+          COALESCE(SUM(offer_stage = 'Final'), 0) AS final,
+          COALESCE(SUM(offer_status = 'Pending'), 0) AS awaitingResponse,
+          COALESCE(SUM(offer_status = 'Accepted'), 0) AS accepted,
+          COALESCE(SUM(offer_status = 'Declined'), 0) AS declined
+        FROM DEVICE_OFFER
+        `
+      );
+      const stats = (statsRows as Array<Record<keyof OfferStats, number | string>>)[0];
+      offerStats = {
+        preliminary: Number(stats.preliminary),
+        final: Number(stats.final),
+        awaitingResponse: Number(stats.awaitingResponse),
+        accepted: Number(stats.accepted),
+        declined: Number(stats.declined),
+      };
+    }
+
     return NextResponse.json(
-      { success: true, offers, userRole: user.role },
+      {
+        success: true,
+        offers,
+        pendingValuations,
+        offerStats,
+        userRole: user.role,
+      },
       { headers: noStore }
     );
   } catch (error) {
@@ -68,7 +181,7 @@ export async function GET() {
     if (response) return response;
     console.error("Failed to load device offers.", error);
     return NextResponse.json(
-      { success: false, message: "Unable to load device offers. Confirm the workflow migration has been applied." },
+      { success: false, message: "Unable to load device offers. Confirm the workflow and valuation queue migrations have been applied." },
       { status: 500, headers: noStore }
     );
   }
@@ -107,6 +220,8 @@ export async function POST(request: Request) {
     const currency =
       typeof body.currency === "string" ? body.currency.trim().toUpperCase() : "";
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const valuationNotes =
+      typeof body.valuationNotes === "string" ? body.valuationNotes.trim() : "";
     const disposition = body.disposition;
 
     if (
@@ -116,8 +231,10 @@ export async function POST(request: Request) {
       amount <= 0 ||
       amount > 9999999999.99 ||
       !/^[A-Z]{3}$/.test(currency) ||
+      !isSupportedCurrency(currency) ||
       !reason ||
       reason.length > 1000 ||
+      valuationNotes.length > 1000 ||
       (stage === "Preliminary" && disposition != null) ||
       (stage === "Final" &&
         disposition !== "Recycling" &&
@@ -218,9 +335,19 @@ export async function POST(request: Request) {
 
     const [result] = await connection.query(
       `INSERT INTO DEVICE_OFFER
-        (item_id, offer_stage, amount, currency, reason, disposition, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [itemId, stage, amount, currency, reason, disposition ?? null, user.userId]
+        (item_id, offer_stage, amount, currency, reason, valuation_notes,
+         disposition, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        itemId,
+        stage,
+        amount,
+        currency,
+        reason,
+        valuationNotes || null,
+        disposition ?? null,
+        user.userId,
+      ]
     );
     if (stage === "Preliminary") {
       await connection.query(

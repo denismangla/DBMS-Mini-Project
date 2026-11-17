@@ -91,12 +91,26 @@ Windows Command Prompt example is:
 mysql -h localhost -u your_mysql_user -p smart_ewaste_db < MySQL\migrations\20261028_workflow_tables.sql
 ```
 
+After verifying the workflow migration, apply the Offers queue migration once:
+
+```cmd
+mysql -h localhost -u your_mysql_user -p smart_ewaste_db < MySQL\migrations\20261117_offer_valuation_queue.sql
+```
+
 This migration alters `PICKUP_REQUEST.collector_id` to permit an unassigned
 collector, replaces the pending-pickup view with a `LEFT JOIN`, adds targeted
 indexes and creates offer, payout and item-status-history tables. Back up
 first; verify each statement and resulting object in MySQL. Do not claim it was
 applied until that verification is complete. Migration order and evidence
 requirements are in [docs/REQUIREMENTS_COMPLIANCE.md](./docs/REQUIREMENTS_COMPLIANCE.md).
+
+The Offers valuation queue also requires
+`MySQL/migrations/20261117_offer_valuation_queue.sql`, applied once after the
+workflow migration. It adds device submission timestamps, optional valuation
+notes and supporting indexes. Existing device submission dates remain unknown
+(`NULL`) rather than being fabricated. Back up and verify the target database
+before applying it; do not run the initial schema/sample-data script against an
+existing database.
 
 Open `http://localhost:3000`. Public pages are `/`, `/register` and `/login`.
 Authenticated pages include `/dashboard`, `/items`, `/offers`, `/pickups`,
@@ -140,9 +154,10 @@ notes, repair recommendations and attachment names. See
 ### Testing results and conclusion
 
 Current source checks and read-only MySQL/MongoDB connectivity evidence are in
-[docs/TESTING.md](./docs/TESTING.md). The additive MySQL migration has not been
-applied; offer, payout, pickup-creation and status-history writes must not be
-presented as database-verified until it is safely applied and tested.
+[docs/TESTING.md](./docs/TESTING.md). Database migrations are environment
+specific: verify both workflow migrations against the target database before
+using offer, payout, pickup-creation or status-history writes. Offers are never
+seeded automatically.
 
 This project establishes an integrated foundation for traceable e-waste
 collection and processing. Priority future work is authenticated end-to-end

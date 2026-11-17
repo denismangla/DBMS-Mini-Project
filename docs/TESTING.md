@@ -127,3 +127,18 @@ values or reading document contents:
 The database observation confirms the migration is required for pickup
 creation and new offer/payout/history features; it does not prove those paths
 work against the live database.
+
+## Offers queue audit (2026-11-17)
+
+A read-only inspection of the currently configured MySQL database found the
+`DEVICE_OFFER` table with zero rows and two registered devices eligible for a
+preliminary valuation. The existing schema had no device submission timestamp
+or offer valuation-notes column. The additive
+`MySQL/migrations/20261117_offer_valuation_queue.sql` adds those fields and
+supporting indexes; it was not applied during this source change.
+
+After building the updated source, authenticated `GET /api/offers` returned
+HTTP 500 with the migration-required message because the new columns are not
+present yet. No offers were created and no customer or device data was changed.
+Do not treat the updated queue or write workflow as live until the migration is
+applied and verified, then test with approved test data.

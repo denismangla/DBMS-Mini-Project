@@ -1905,6 +1905,190 @@ footer {
   }
 }
 
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.offerMetrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.offerMetrics article {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(160, 196, 174, 0.14);
+  border-radius: 12px;
+  background: #102019;
+}
+
+.offerMetrics span {
+  color: #9ab0a1;
+  font-size: 11px;
+}
+
+.offerMetrics strong {
+  color: #e5f1e8;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.valuationQueue,
+.offerHistorySection {
+  display: grid;
+  gap: 16px;
+}
+
+.queueFilters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 250px);
+  gap: 10px;
+}
+
+.queueFilters input,
+.queueFilters select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid rgba(160, 196, 174, 0.2);
+  border-radius: 8px;
+  background: #0c1913;
+  color: #e4efe7;
+  font: inherit;
+}
+
+.valuationQueueList {
+  display: grid;
+  gap: 10px;
+}
+
+.valuationQueueItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid rgba(160, 196, 174, 0.15);
+  border-radius: 10px;
+  background: rgba(5, 14, 10, 0.32);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.valuationQueueItem.selected {
+  border-color: rgba(158, 211, 121, 0.6);
+  background: rgba(88, 140, 80, 0.1);
+}
+
+.valuationQueueSummary {
+  min-width: 0;
+}
+
+.valuationQueueSummary h3,
+.valuationReview h3 {
+  margin: 5px 0;
+  color: #e8f3eb;
+  font-size: 16px;
+}
+
+.valuationQueueSummary p,
+.valuationReview p {
+  margin-top: 5px;
+  color: #a4b8aa;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.valuationDescription {
+  max-width: 650px;
+}
+
+.valuationReview {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid rgba(160, 196, 174, 0.17);
+  border-left: 3px solid #a9d77d;
+  border-radius: 9px;
+  background: rgba(5, 14, 10, 0.35);
+}
+
+.inspectionFindings {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(160, 196, 174, 0.14);
+}
+
+.inspectionFindings strong {
+  color: #dcebe0;
+}
+
+.offerHistoryHeading h2 {
+  margin-top: 5px;
+  color: #e5f1e8;
+  font-size: 22px;
+}
+
+.offerFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.offerFilters button {
+  padding: 8px 11px;
+  border: 1px solid rgba(160, 196, 174, 0.18);
+  border-radius: 999px;
+  background: #102019;
+  color: #a9bdb0;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.offerFilters button.active {
+  border-color: rgba(169, 215, 125, 0.58);
+  background: rgba(125, 174, 96, 0.14);
+  color: #d9efc3;
+}
+
+@media (max-width: 1000px) {
+  .offerMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .offerMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .valuationQueueItem {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .valuationQueueItem > button {
+    width: 100%;
+  }
+
+  .queueFilters {
+    grid-template-columns: 1fr;
+  }
+}
+
 :root {
   --ink: #edf5f0;
   --muted: #9aada4;

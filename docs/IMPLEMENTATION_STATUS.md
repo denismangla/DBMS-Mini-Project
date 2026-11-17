@@ -38,7 +38,21 @@ against that database using temporary records that were removed afterward.
 ## Offer, pickup and payout workflows
 
 - `POST /api/offers` lets staff/admin create preliminary and final offers;
-  customers see only their own and can accept/decline through `PATCH`.
+  its staff queue is sourced from eligible `E_WASTE_ITEM` rows, not existing
+  offers, and customers see only their own offers and can accept/decline
+  through `PATCH`.
+- The Offers workspace shows eligible registered/estimate-declined devices,
+  customer/device details, prior declined preliminary valuations and the
+  inspection details/reports required to review a final offer. Final offers
+  remain separate history rows; current pending/accepted preliminary offers
+  are excluded from the valuation queue.
+- Staff offer creation records the authenticated actor, validates price and
+  currency, preserves optional valuation notes, and rejects duplicate active
+  offers. Customer decisions remain transactional and ownership-scoped.
+- `MySQL/migrations/20261117_offer_valuation_queue.sql` adds the nullable
+  `submitted_at` field, optional offer valuation notes and queue/history
+  indexes. Existing device rows have no reliable submission date and remain
+  `NULL`; new website submissions record their timestamp.
 - `POST /api/pickups` creates an owned-device request after accepted preliminary
   offer; staff/admin can schedule, assign a collector from that center and
   record receipt using `PATCH /api/pickups/[id]`.
@@ -71,6 +85,9 @@ against that database using temporary records that were removed afterward.
   aggregation are not present.
 - No screenshots or individual contribution evidence are committed. Capture
   actual evidence and map contributions to Git history; do not infer ownership.
+- Do not describe the offer workflow as end-to-end verified until the new
+  migration is applied to the target database and a staff-to-customer offer
+  flow has been tested with approved test data.
 
 ## Configuration and data safety
 

@@ -290,9 +290,9 @@ export async function POST(request: Request) {
       `
       INSERT INTO E_WASTE_ITEM
         (item_name, description, \`condition\`, manufacture_year,
-         estimated_weight, item_status, final_disposition, user_id,
+         estimated_weight, item_status, submitted_at, final_disposition, user_id,
          category_id, brand_id, quantity)
-      VALUES (?, ?, ?, ?, ?, 'Registered', NULL, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, 'Registered', CURRENT_TIMESTAMP, NULL, ?, ?, ?, ?)
       `,
       [
         itemName,
