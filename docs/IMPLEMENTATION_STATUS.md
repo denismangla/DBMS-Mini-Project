@@ -1,9 +1,10 @@
 # Implementation status
 
 This status distinguishes existing behavior from new source changes. The
-additive workflow migration was applied to the configured `smart_ewaste_db`
-after a restorable backup was confirmed, and the offer/payout APIs were tested
-against that database using temporary records that were removed afterward.
+additive workflow and Offers queue migrations were applied to the configured
+`smart_ewaste_db` after a restorable backup was confirmed. Offer/payout APIs
+and authenticated staff/customer pages were tested using temporary records
+that were removed afterward.
 
 ## Preserved customer features
 
@@ -62,6 +63,11 @@ against that database using temporary records that were removed afterward.
   payout for that offer. Payout status transitions are `Pending` ->
   `Processing` -> `Paid` or `Failed`; failed payouts can be retried through
   `Processing`.
+- Staff can review payout summaries, status filters and offer/device details.
+  Customers see only their own payout rows and history. The UI labels `Paid`
+  as completed, and the staff API requires a transaction reference before
+  recording that state. This is a manual workflow; it does not initiate or
+  verify a money transfer.
 - `SUPPLIER_PAYOUT_HISTORY` records each payout status transition, actor,
   transaction reference and failure reason.
 - `ITEM_STATUS_HISTORY` records transitions made by these workflow operations.
@@ -72,8 +78,10 @@ against that database using temporary records that were removed afterward.
 ## Remaining workflow and authorization gaps
 
 - MySQL offer, pickup, inspection and payout API transitions were exercised
-  with temporary test records. The MongoDB inspection-report write is separate;
-  no automatic cross-database atomic transaction is claimed.
+  with temporary test records. Browser tests exercised the staff/customer
+  Offers and Payouts pages. The successful payment-completion transition was
+  not used to simulate a real payment. The MongoDB inspection-report write is
+  separate; no automatic cross-database atomic transaction is claimed.
 - A declined final offer is explicitly marked `Return Requested`, but no
   return scheduling/resolution workflow exists yet.
 - Recycling/refurbishment list/status operations remain existing functionality;
@@ -85,15 +93,17 @@ against that database using temporary records that were removed afterward.
   aggregation are not present.
 - No screenshots or individual contribution evidence are committed. Capture
   actual evidence and map contributions to Git history; do not infer ownership.
-- Do not describe the offer workflow as end-to-end verified until the new
-  migration is applied to the target database and a staff-to-customer offer
-  flow has been tested with approved test data.
+- The configured database currently has no offers or payouts, so both pages
+  show real empty states until actual workflow records are created. No
+  persistent test fixtures or simulated completed payments remain.
 
 ## Configuration and data safety
 
 - Existing `lib/auth.ts`, MySQL pool and MongoDB client are reused.
-- The new migration is additive. No database changes, drops, resets or seed
-  scripts were executed for this update.
+- The applied migrations are additive; no tables were dropped/recreated and
+  no seed script was run. Temporary offers, payouts and inspections used for
+  verification were removed, and the affected existing item statuses were
+  restored.
 - `.env.example` contains variable names/placeholders only; keep `.env.local`
   untracked and do not share its values.
 - Validation and historical runtime evidence are distinguished in

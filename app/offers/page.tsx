@@ -382,52 +382,54 @@ export default function OffersPage() {
               </div>
               {loading ? (
                 <p className="stateMessage">Loading submitted devices…</p>
-              ) : visibleValuations.length === 0 ? (
-                <div className="emptyState">
-                  <h2>{pendingValuations.length ? "No matching devices" : "No devices awaiting valuation"}</h2>
-                  <p>
-                    {pendingValuations.length
-                      ? "Try another search or status filter."
-                      : "New registered devices will appear here until a preliminary offer is issued."}
-                  </p>
-                </div>
-              ) : (
-                <div className="valuationQueueList">
-                  {visibleValuations.map((item) => (
-                    <article
-                      className={`valuationQueueItem${selectedValuationId === item.item_id ? " selected" : ""}`}
-                      key={item.item_id}
-                    >
-                      <div className="valuationQueueSummary">
-                        <span className="eyebrow">ITEM #{item.item_id} · {item.category_name}</span>
-                        <h3>{item.item_name}</h3>
-                        <p>{item.brand_name ?? "Unbranded"}{item.condition ? ` · ${item.condition} condition` : ""}</p>
-                        <p>Customer: {item.customer_name}</p>
-                        <p>Submitted: {dateLabel(item.submitted_at)} · {item.item_status}</p>
-                        <p>
-                          Previous preliminary offer:{" "}
-                          {item.previous_offer_status
-                            ? `${item.previous_offer_status}${item.previous_offer_amount != null
-                              ? ` · ${money(item.previous_offer_amount, item.previous_offer_currency ?? "INR")}`
-                              : ""}`
-                            : "None"}
-                        </p>
-                        {item.description && <p className="valuationDescription">{item.description}</p>}
-                      </div>
-                      <button
-                        type="button"
-                        className={selectedValuationId === item.item_id ? "outlineButton" : "primaryButton"}
-                        onClick={() => {
-                          setSelectedValuationId(item.item_id);
-                          setForm({ ...form, itemId: String(item.item_id), stage: "Preliminary" });
-                          setError("");
-                        }}
+              ) : error ? null : (
+                visibleValuations.length === 0 ? (
+                  <div className="emptyState">
+                    <h2>{pendingValuations.length ? "No matching devices" : "No devices awaiting valuation"}</h2>
+                    <p>
+                      {pendingValuations.length
+                        ? "Try another search or status filter."
+                        : "New registered devices will appear here until a preliminary offer is issued."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="valuationQueueList">
+                    {visibleValuations.map((item) => (
+                      <article
+                        className={`valuationQueueItem${selectedValuationId === item.item_id ? " selected" : ""}`}
+                        key={item.item_id}
                       >
-                        {selectedValuationId === item.item_id ? "Selected for valuation" : "Review device"}
-                      </button>
-                    </article>
-                  ))}
-                </div>
+                        <div className="valuationQueueSummary">
+                          <span className="eyebrow">ITEM #{item.item_id} · {item.category_name}</span>
+                          <h3>{item.item_name}</h3>
+                          <p>{item.brand_name ?? "Unbranded"}{item.condition ? ` · ${item.condition} condition` : ""}</p>
+                          <p>Customer: {item.customer_name}</p>
+                          <p>Submitted: {dateLabel(item.submitted_at)} · {item.item_status}</p>
+                          <p>
+                            Previous preliminary offer:{" "}
+                            {item.previous_offer_status
+                              ? `${item.previous_offer_status}${item.previous_offer_amount != null
+                                ? ` · ${money(item.previous_offer_amount, item.previous_offer_currency ?? "INR")}`
+                                : ""}`
+                              : "None"}
+                          </p>
+                          {item.description && <p className="valuationDescription">{item.description}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          className={selectedValuationId === item.item_id ? "outlineButton" : "primaryButton"}
+                          onClick={() => {
+                            setSelectedValuationId(item.item_id);
+                            setForm({ ...form, itemId: String(item.item_id), stage: "Preliminary" });
+                            setError("");
+                          }}
+                        >
+                          {selectedValuationId === item.item_id ? "Selected for valuation" : "Review device"}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                )
               )}
             </section>
 
@@ -565,7 +567,7 @@ export default function OffersPage() {
               <p className="formHelp">Most recent offers appear first; previous decisions remain in your history.</p>
             </div>
           </div>
-          {!management && offers.length === 0 && !loading && (
+          {!management && offers.length === 0 && !loading && !error && (
             <div className="emptyState">
               <h2>Your devices are awaiting staff valuation</h2>
               <p>Offers will appear here as soon as the operations team reviews your submitted devices.</p>
@@ -587,7 +589,7 @@ export default function OffersPage() {
               ))}
             </div>
           )}
-          {loading ? <p className="stateMessage">Loading offers…</p> : offers.length > 0 && visibleOffers.length === 0 ? (
+          {loading ? <p className="stateMessage">Loading offers…</p> : error ? null : offers.length > 0 && visibleOffers.length === 0 ? (
             <div className="emptyState"><h2>No offers in this view</h2><p>Choose another filter to review your offer history.</p></div>
           ) : offers.length > 0 && (
           <div className="reportList">

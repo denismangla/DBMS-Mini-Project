@@ -2064,6 +2064,31 @@ footer {
   color: #d9efc3;
 }
 
+.payoutDetails {
+  display: grid;
+  gap: 8px;
+  min-width: 280px;
+  color: #b7c9bd;
+}
+
+.payoutDetails p,
+.payoutDetails h3 {
+  margin: 0;
+}
+
+.payoutDetails h3 {
+  margin-top: 5px;
+  color: #e5f1e8;
+  font-size: 13px;
+}
+
+.payoutDetails ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 @media (max-width: 1000px) {
   .offerMetrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));

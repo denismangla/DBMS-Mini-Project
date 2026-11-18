@@ -61,18 +61,28 @@ testing.
   user confirmed a restorable backup. The migration added the offer, supplier
   payout, payout history and item status history tables, and made unassigned
   pickup collectors nullable.
+- The additive Offers queue migration
+  `MySQL/migrations/20261117_offer_valuation_queue.sql` was applied after a
+  restorable backup was confirmed. Its two columns and supporting indexes were
+  verified in MySQL.
 - Authenticated API tests exercised preliminary/final offers, pickup
-  scheduling/completion, inspection, payout creation, processing, payment,
-  failure, retry, duplicate rejection, declined-offer rejection and customer
-  ownership scoping. Temporary test users and workflow records were cleaned
-  up after each run.
+  scheduling/completion, inspection, payout creation, processing, failure,
+  retry, duplicate rejection, declined-offer rejection and customer ownership
+  scoping. Any status-only payment tests used temporary test data and do not
+  verify or claim an actual money transfer.
 - Customer login used the normal login route. Management API tests used a
   short-lived signed `ADMIN` session for an existing administrator because
   no management password was used in the test. This verifies the route's
   role/session checks, not password-based management login.
-- The customer/staff pages were not tested in a browser with authenticated
-  users. No full responsive browser matrix or MongoDB report write was part of
-  the offer/payout verification.
+- Authenticated production-browser checks exercised staff/customer Offers and
+  Payouts pages. Staff created a preliminary offer; customers declined and
+  accepted offers; staff created a final offer after inspection; and the
+  customer and staff both read a pending/processing payout and its history.
+  Temporary fixtures were removed and item states restored afterward.
+- The successful payment-completion transition was not exercised because no
+  real payment was made. The API rejected completion without a transaction
+  reference. No full responsive browser matrix or MongoDB report write was
+  part of this verification.
 
 ## Current-source checks
 
@@ -83,25 +93,26 @@ Run results for the current implementation:
 - `npm run build`: passed; Next.js 16.3.6 generated the public pages and
   compiled `/api/offers`, `/api/payouts`, `/api/pickups/[id]` and
   `/api/inspections/record`.
-- Live MySQL offer/payout API integration: passed for the flows listed above.
-  Both customer and management `GET /api/offers` and `GET /api/payouts`
-  returned HTTP 200 after migration; unauthenticated GETs returned 401.
-- The customer read back the persisted paid amount, status and transaction
-  reference. Another customer could not see that offer or payout.
-- Failed payout required a reason, remained visible to its customer, and could
-  be retried without creating a duplicate payout.
-- Production server smoke check: `http://localhost:3000` returned HTTP 200.
-- Unauthenticated requests to the offer/payout GET routes and pickup/
-  inspection mutation routes returned 401 before database access.
-- Browser smoke check: landing page and registration page rendered; the offers
-  page redirected to login when unauthenticated. Desktop screenshots were
-  captured transiently in the browser tool; registration was also checked at
-  390px with no horizontal overflow. No screenshot files were saved to the
-  repository.
+- Authenticated staff/customer GETs for dashboard, items, pickups, inspections,
+  offers, payouts, recycling and refurbishment returned HTTP 200.
+- MySQL workflow tests passed: staff preliminary/final offer creation;
+  customer offer ownership, decline and acceptance; payout creation from an
+  accepted final offer; duplicate rejection; customer ownership isolation;
+  staff-only payout mutations; payout processing, failure and retry; history
+  reads; and rejection of a declined final offer for payout.
+- The successful `Paid` transition was not performed. Supplying no transaction
+  reference is rejected; no payment was made or represented as completed.
+- Authenticated production-browser checks passed for staff and customer Offers
+  and Payouts pages, including staff offer creation, customer offer decisions,
+  payout details/history, filters, and role-specific empty states.
+- After cleanup, MySQL contains zero `DEVICE_OFFER`, `SUPPLIER_PAYOUT` and
+  `SUPPLIER_PAYOUT_HISTORY` rows; all 10 pre-existing inspections and original
+  item statuses remain. No test payout or simulated payment was left behind.
 - `git diff --check`: passed.
 
-The browser checks remain smoke checks; the authenticated MySQL API workflow
-was tested separately with temporary test records.
+The local development server reported HMR WebSocket handshake errors in the
+browser harness; the production build/browser checks were used for UI
+verification and completed without page errors.
 
 ## Database readiness probe
 
@@ -128,17 +139,18 @@ The database observation confirms the migration is required for pickup
 creation and new offer/payout/history features; it does not prove those paths
 work against the live database.
 
-## Offers queue audit (2026-11-17)
+## Offers and payouts audit (2026-11-17)
 
-A read-only inspection of the currently configured MySQL database found the
-`DEVICE_OFFER` table with zero rows and two registered devices eligible for a
-preliminary valuation. The existing schema had no device submission timestamp
-or offer valuation-notes column. The additive
-`MySQL/migrations/20261117_offer_valuation_queue.sql` adds those fields and
-supporting indexes; it was not applied during this source change.
+The initial read-only inspection found that the database lacked
+`DEVICE_OFFER.valuation_notes` and `E_WASTE_ITEM.submitted_at`, although the
+updated Offers API queried both. The resulting authenticated `GET /api/offers`
+failed with HTTP 500 (`Unknown column 'o.valuation_notes' in 'field list'`).
+The approved additive migration was applied and verified; both staff and
+customer Offers/Payouts reads then returned HTTP 200.
 
-After building the updated source, authenticated `GET /api/offers` returned
-HTTP 500 with the migration-required message because the new columns are not
-present yet. No offers were created and no customer or device data was changed.
-Do not treat the updated queue or write workflow as live until the migration is
-applied and verified, then test with approved test data.
+The database originally had zero offers and zero payouts, so the empty payout
+view was accurate rather than missing seeded production data. Temporary,
+clearly marked records on existing devices were used to exercise the staff and
+customer workflows and then removed. The device statuses/dispositions were
+restored. No persistent offer or payout test data remains; the current UI
+continues to show a true empty state until real eligible offers/payouts exist.

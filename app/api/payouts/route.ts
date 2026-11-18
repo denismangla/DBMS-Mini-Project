@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import pool from "@/lib/mysql";
 
 const noStore = { "Cache-Control": "no-store, no-cache, must-revalidate" };
+type PayoutStatus = "Pending" | "Processing" | "Paid" | "Failed";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -36,20 +37,110 @@ export async function GET() {
     const customer = user.role === "CUSTOMER";
     const [rows] = await pool.query(
       `SELECT p.payout_id, p.offer_id, o.item_id, e.item_name,
+              e.description, e.\`condition\`, c.category_name, b.brand_name,
               e.user_id, u.full_name AS customer_name,
+              o.amount AS accepted_offer_amount, o.reason AS offer_reason,
+              o.disposition AS offer_disposition,
               p.amount, p.currency, p.payment_method, p.payout_status,
               p.transaction_reference, p.failure_reason, p.created_at,
               p.updated_at, p.processing_at, p.paid_at
        FROM SUPPLIER_PAYOUT p
        JOIN DEVICE_OFFER o ON o.offer_id = p.offer_id
        JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
+       JOIN CATEGORY c ON c.category_id = e.category_id
+       LEFT JOIN BRAND b ON b.brand_id = e.brand_id
        JOIN \`USER\` u ON u.user_id = e.user_id
        ${customer ? "WHERE e.user_id = ?" : ""}
        ORDER BY p.created_at DESC, p.payout_id DESC`,
       customer ? [user.userId] : []
     );
+    const payouts = rows as Array<Record<string, unknown> & {
+      payout_id: number;
+      payout_status: "Pending" | "Processing" | "Paid" | "Failed";
+      amount: string | number;
+      currency: string;
+    }>;
+    const historyByPayout = new Map<number, Array<Record<string, unknown>>>();
+    if (payouts.length > 0) {
+      const placeholders = payouts.map(() => "?").join(", ");
+      const [historyRows] = await pool.query(
+        `SELECT payout_id, previous_status, next_status, transaction_reference,
+                failure_reason, changed_at
+         FROM SUPPLIER_PAYOUT_HISTORY
+         WHERE payout_id IN (${placeholders})
+         ORDER BY changed_at DESC, payout_history_id DESC`,
+        payouts.map((payout) => payout.payout_id)
+      );
+      for (const entry of historyRows as Array<Record<string, unknown> & { payout_id: number }>) {
+        const history = historyByPayout.get(entry.payout_id) ?? [];
+        history.push(entry);
+        historyByPayout.set(entry.payout_id, history);
+      }
+    }
+
+    const [summaryRows] = await pool.query(
+      `SELECT p.payout_status, p.currency, COUNT(*) AS payout_count,
+              SUM(p.amount) AS payout_total
+       FROM SUPPLIER_PAYOUT p
+       JOIN DEVICE_OFFER o ON o.offer_id = p.offer_id
+       JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
+       ${customer ? "WHERE e.user_id = ?" : ""}
+       GROUP BY p.payout_status, p.currency`,
+      customer ? [user.userId] : []
+    );
+    const aggregates = summaryRows as Array<{
+      payout_status: PayoutStatus;
+      currency: string;
+      payout_count: number | string;
+      payout_total: number | string;
+    }>;
+    const summary = Object.fromEntries(
+      (["Pending", "Processing", "Paid", "Failed"] as const).map((status) => {
+        const matching = aggregates.filter((entry) => entry.payout_status === status);
+        return [
+          status,
+          {
+            count: matching.reduce((total, entry) => total + Number(entry.payout_count), 0),
+            totals: matching.map((entry) => ({
+              currency: entry.currency,
+              amount: entry.payout_total,
+            })),
+          },
+        ];
+      })
+    );
+
+    let eligibleOffers: Array<Record<string, unknown>> = [];
+    if (!customer) {
+      const [eligibleRows] = await pool.query(
+        `SELECT o.offer_id, o.item_id, e.item_name, u.full_name AS customer_name,
+                o.amount, o.currency
+         FROM DEVICE_OFFER o
+         JOIN E_WASTE_ITEM e ON e.item_id = o.item_id
+         JOIN \`USER\` u ON u.user_id = e.user_id
+         WHERE o.offer_stage = 'Final'
+           AND o.offer_status = 'Accepted'
+           AND e.item_status = 'Final Offer Accepted'
+           AND e.final_disposition = o.disposition
+           AND NOT EXISTS (
+             SELECT 1 FROM SUPPLIER_PAYOUT p WHERE p.offer_id = o.offer_id
+           )
+         ORDER BY o.decided_at DESC, o.offer_id DESC`
+      );
+      eligibleOffers = eligibleRows as Array<Record<string, unknown>>;
+    }
+
     return NextResponse.json(
-      { success: true, payouts: rows, userRole: user.role },
+      {
+        success: true,
+        payouts: payouts.map((payout) => ({
+          ...payout,
+          history: historyByPayout.get(payout.payout_id) ?? [],
+        })),
+        eligibleOffers,
+        summary,
+        userRole: user.role,
+      },
       { headers: noStore }
     );
   } catch (error) {
@@ -218,10 +309,11 @@ export async function PATCH(request: Request) {
       (status !== "Processing" && status !== "Paid" && status !== "Failed") ||
       reference.length > 150 ||
       failureReason.length > 1000 ||
+      (status === "Paid" && !reference) ||
       (status === "Failed" && !failureReason)
     ) {
       return NextResponse.json(
-        { success: false, message: "Provide a valid payout status, transaction reference, and failure reason when marking a payout failed." },
+        { success: false, message: "Provide a transaction reference when recording payment completion and a failure reason when marking a payout failed." },
         { status: 400, headers: noStore }
       );
     }
@@ -304,7 +396,13 @@ export async function PATCH(request: Request) {
     await connection.commit();
     transactionStarted = false;
     return NextResponse.json(
-      { success: true, message: `Payout moved to ${status.toLowerCase()}.`, status },
+      {
+        success: true,
+        message: status === "Paid"
+          ? "Completed payment recorded with its transaction reference."
+          : `Payout moved to ${status.toLowerCase()}.`,
+        status,
+      },
       { headers: noStore }
     );
   } catch (error) {
