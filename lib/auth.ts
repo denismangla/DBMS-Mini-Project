@@ -11,7 +11,18 @@ export type SessionUser = {
 };
 
 export const SESSION_COOKIE_NAME = "ewaste_session";
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 2;
 export const AUTH_ROLES: AppRole[] = ["CUSTOMER", "STAFF", "ADMIN"];
+
+export function getSessionCookieOptions(request: Request, maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: new URL(request.url).protocol === "https:",
+    sameSite: "lax" as const,
+    maxAge,
+    path: "/",
+  };
+}
 
 export function getAuthSecret() {
   const value = process.env.AUTH_SECRET;
@@ -53,8 +64,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
+  const secret = getAuthSecret();
+
   try {
-    const { payload } = await jwtVerify(token, getAuthSecret());
+    const { payload } = await jwtVerify(token, secret);
     const userId = parseUserId(payload.userId);
 
     if (

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
-import { getAuthSecret, SESSION_COOKIE_NAME } from "@/lib/auth";
+import {
+  getAuthSecret,
+  getSessionCookieOptions,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/lib/auth";
 import pool from "@/lib/mysql";
 
 export async function POST(request: Request) {
@@ -102,7 +107,9 @@ export async function POST(request: Request) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("2h")
+      .setExpirationTime(
+        Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS
+      )
       .sign(getAuthSecret());
 
     const response = NextResponse.json(
@@ -124,13 +131,11 @@ export async function POST(request: Request) {
       }
     );
 
-    response.cookies.set(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 2,
-      path: "/",
-    });
+    response.cookies.set(
+      SESSION_COOKIE_NAME,
+      token,
+      getSessionCookieOptions(request, SESSION_MAX_AGE_SECONDS)
+    );
 
     return response;
   } catch (error) {

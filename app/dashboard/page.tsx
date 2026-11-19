@@ -30,8 +30,11 @@ export default function DashboardPage() {
     async function load() {
       try {
         const [authResponse, statsResponse] = await Promise.all([
-          fetch("/api/auth/me", { cache: "no-store" }),
-          fetch("/api/dashboard/stats", { cache: "no-store" }),
+          fetch("/api/auth/me", { cache: "no-store", credentials: "include" }),
+          fetch("/api/dashboard/stats", {
+            cache: "no-store",
+            credentials: "include",
+          }),
         ]);
         if (authResponse.status === 401) {
           router.push("/login");
